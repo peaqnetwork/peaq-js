@@ -1,0 +1,68 @@
+{
+  "name": "types",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/types/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nrwl/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/types",
+        "main": "packages/types/src/index.ts",
+        "tsConfig": "packages/types/tsconfig.lib.json",
+        "assets": ["packages/types/*.md"]
+      }
+    },
+    "publish": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node tools/scripts/publish.mjs types {args.ver} {args.tag}"
+      },
+      "dependsOn": ["build"]
+    },
+    "lint": {
+      "executor": "@nrwl/linter:eslint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["packages/types/**/*.ts"]
+      }
+    },
+    "generate:defs": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/interfaces"],
+      "options": {
+        "command": "node -r ts-node/register -r tsconfig-paths/register node_modules/.bin/polkadot-types-from-defs --package @peaq-network/types/interfaces --input packages/types/src/interfaces --endpoint ./packages/types/src/metadata/static-latest.json"
+      }
+    },
+    "generate:meta": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/interfaces"],
+      "options": {
+        "command": "node -r ts-node/register -r tsconfig-paths/register node_modules/.bin/polkadot-types-from-chain --package @peaq-network/types/interfaces --endpoint ./packages/types/src/metadata/static-latest.json --output packages/types/src/interfaces"
+      }
+    },
+    "buildTypes": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/interfaces"],
+      "options": {
+        "command": "nx run types:generate:defs && nx run types:generate:meta"
+      }
+    },
+    "update-metadata": {
+      "executor": "nx:run-commands",
+      "outputs": [],
+      "options": {
+        "command": "ts-node --project packages/types/tsconfig.json packages/types/scripts/updateMetadata.ts"
+      }
+    },
+    "build:interfaces": {
+      "executor": "nx:run-commands",
+      "outputs": [],
+      "options": {
+        "command": "node -r ts-node/register -r tsconfig-paths/register packages/types/scripts/generate.ts -r tsconfig-paths/register -r tsconfig-paths/register -r tsconfig-paths/register --project tsconfig.base.json"
+      }
+    }
+  },
+  "tags": ["peaq", "types", "typescript"]
+}

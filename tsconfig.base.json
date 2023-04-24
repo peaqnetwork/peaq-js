@@ -1,0 +1,36 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "es2015",
+    "module": "esnext",
+    "lib": ["es2017", "dom"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "typeRoots": ["./node_modules/@polkadot/ts", "./node_modules/@types"],
+    "paths": {
+      "@peaq-network/sdk": ["packages/sdk/src/index.ts"],
+      "@peaq-network/types": ["packages/types/src/index.ts"],
+      "@peaq-network/types/*": ["packages/types/src/*"],
+      "@polkadot/api/augment": ["packages/types/src/interfaces/augment-api.ts"],
+      "@polkadot/types/augment": [
+        "packages/types/src/interfaces/augment-types.ts"
+      ],
+      "@polkadot/types/lookup": [
+        "packages/types/src/interfaces/types-lookup.ts"
+      ]
+    }
+  },
+  "exclude": ["node_modules", "tmp"],
+  "ts-node": {
+    "experimentalSpecifierResolution": "node"
+  }
+}

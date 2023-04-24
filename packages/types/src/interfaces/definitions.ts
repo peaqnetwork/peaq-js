@@ -1,0 +1,1 @@
+export { default as peaqdid } from './peaqdid/definitions';
