@@ -4,6 +4,7 @@
   "license": "MIT",
   "scripts": {},
   "private": true,
+  "repository": "https://github.com/peaqnetwork/peaq-js.git",
   "dependencies": {
     "@polkadot/api": "^10.3.2",
     "peaq-did-proto-js": "^1.0.0",
