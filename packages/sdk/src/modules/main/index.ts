@@ -1,6 +1,6 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { mnemonicValidate } from '@polkadot/util-crypto';
-import { defaultOptions } from '@peaq-network/types';
+// import { defaultOptions } from '@peaq-network/types';
 
 import { getKeyPair, unsubscribeRuntimeVersion } from '../../utils';
 import type { Options, SDKMetadata } from '../../types';
@@ -97,7 +97,7 @@ export class Main extends Base {
     return new ApiPromise({
       provider,
       noInitWarn: true,
-      ...defaultOptions,
+      // ...defaultOptions,
     });
   }
 }

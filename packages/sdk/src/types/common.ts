@@ -1,5 +1,6 @@
 import { KeyringPair } from '@polkadot/keyring/types';
-import type { AccountId32 } from '@polkadot/types/interfaces/runtime';
+import type { AccountId32, BlockNumber, Moment } from '@polkadot/types/interfaces/runtime';
+import type { Bytes, Struct } from '@polkadot/types-codec';
 
 export type Address = AccountId32 | string;
 
@@ -50,4 +51,11 @@ export interface ReadDidResponse {
   validity: string;
   created: string;
   document: DidDocument;
+}
+
+export interface Attribute extends Struct {
+  readonly name: Bytes;
+  readonly value: Bytes;
+  readonly validity: BlockNumber;
+  readonly created: Moment;
 }

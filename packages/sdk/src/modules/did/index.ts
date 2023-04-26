@@ -1,5 +1,5 @@
 import * as peaqDidProto from 'peaq-did-proto-js';
-import { Attribute } from '@peaq-network/types/interfaces';
+// import { Attribute } from '@peaq-network/types/interfaces';
 import { ApiPromise } from '@polkadot/api';
 import { u8aToHex } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
@@ -7,7 +7,7 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys, getKeyPair } from '../../utils';
-import type { Address, ReadDidResponse, SDKMetadata } from '../../types';
+import type { Address, Attribute, ReadDidResponse, SDKMetadata } from '../../types';
 import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
