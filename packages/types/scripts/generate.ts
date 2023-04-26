@@ -21,7 +21,7 @@ import {result as metadata} from '../src/metadata/static-latest.json';
 
 import * as defaultDefinations from '@polkadot/types/interfaces/definitions';
 
-import * as ormlDefinations from '@open-web3/orml-types/interfaces/definitions';
+// import * as ormlDefinations from '@open-web3/orml-types/interfaces/definitions';
 
 import * as peaqDefinations from '../src/interfaces/definitions';
 
@@ -29,11 +29,11 @@ import * as peaqDefinations from '../src/interfaces/definitions';
 const {runtime, ...substrateDefinations} = defaultDefinations;
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-let {runtime: _runtime, ...ormlModulesDefinations} = ormlDefinations;
-delete ormlDefinations.rewards;
-delete ormlDefinations.tokens;
-delete ormlDefinations.__esModule;
-delete ormlDefinations.oracle;
+// let {runtime: _runtime, ...ormlModulesDefinations} = ormlDefinations;
+// delete ormlDefinations.rewards;
+// delete ormlDefinations.tokens;
+// delete ormlDefinations.__esModule;
+// delete ormlDefinations.oracle;
 
 const definations = {
   '@polkadot/types/interfaces': defaultDefinations,

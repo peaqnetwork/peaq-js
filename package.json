@@ -9,8 +9,7 @@
     "@polkadot/api": "^10.3.2",
     "peaq-did-proto-js": "^1.0.0",
     "tslib": "^2.3.0",
-    "uuid": "^9.0.0",
-    "@open-web3/orml-types": "^2.0.1"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@nrwl/eslint-plugin-nx": "15.9.2",
