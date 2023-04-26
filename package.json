@@ -6,7 +6,6 @@
   "private": true,
   "repository": "https://github.com/peaqnetwork/peaq-js.git",
   "dependencies": {
-    "@peaq-network/types": "^0.1.2",
     "@polkadot/api": "^10.3.2",
     "peaq-did-proto-js": "^1.0.0",
     "tslib": "^2.3.0",

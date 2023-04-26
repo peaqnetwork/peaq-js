@@ -12,8 +12,7 @@
         "main": "packages/sdk/src/index.ts",
         "tsConfig": "packages/sdk/tsconfig.lib.json",
         "assets": ["packages/sdk/*.md"]
-      },
-      "dependsOn": ["^build"]
+      }
     },
     "publish": {
       "executor": "nx:run-commands",
