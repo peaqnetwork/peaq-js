@@ -1,7 +1,8 @@
 import { BN } from '@polkadot/util';
+import { KeyringPair } from '@polkadot/keyring/types';
+import { ApiPromise, Keyring } from '@polkadot/api';
 
 import type { Address } from '../../types';
-import { ApiPromise } from '@polkadot/api';
 
 export class Base {
   private _nonceStore: Map<Address, BN>;
@@ -15,12 +16,20 @@ export class Base {
     return this._api;
   }
 
+  protected _getKeyPair =  (seed: string): KeyringPair => {
+    if (!seed) {
+      throw new Error('Seed is required');
+    }
+    const keyring = new Keyring({ type: 'sr25519' });
+    return keyring.addFromUri(seed);
+  };
+
   protected async _getNonce(address: Address): Promise<BN> {
     const api = this._getApi();
 
     const onChainNonce: BN = (
       await api.rpc.system.accountNextIndex(address)
-    ).toBn();
+    ).toBn() as BN;
 
     const currentNonce = (
       this._nonceStore.has(address) ? this._nonceStore.get(address) : new BN(0)

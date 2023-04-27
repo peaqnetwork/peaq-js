@@ -1,18 +1,9 @@
-import { ApiPromise, Keyring } from '@polkadot/api';
-import { KeyringPair } from '@polkadot/keyring/types';
+import { ApiPromise } from '@polkadot/api';
 import { u8aConcat, u8aToU8a } from '@polkadot/util';
 import { blake2AsHex, decodeAddress } from '@polkadot/util-crypto';
 
 import type { CreateStorageKeysArgs } from '../types';
 import { CreateStorageKeysEnum } from '../types';
-
-export const getKeyPair = (seed: string): KeyringPair => {
-  if (!seed) {
-    throw new Error('Seed is required');
-  }
-  const keyring = new Keyring({ type: 'sr25519' });
-  return keyring.addFromUri(seed);
-};
 
 export const createStorageKeys = (args: CreateStorageKeysArgs[]) => {
   const keysByteArray = [];
@@ -43,7 +34,7 @@ export const unsubscribeRuntimeVersion = async (api: ApiPromise) => {
         })
       )();
   } catch (e) {
-    console.log('Unsubscribe error: ', e);
+    console.error('Unsubscribe error: ', e);
   }
 };
 

@@ -29,7 +29,7 @@ describe('Main', () => {
     it('should throw an error if the provided URL is invalid', async () => {
       const invalidUrl = 'invalid url';
       const sdk = Main.createInstance({ baseUrl: invalidUrl });
-      await expect(sdk).rejects.toThrow("Endpoint should start with 'ws://', received 'invalid url'");
+      expect(sdk).rejects.toThrow("Endpoint should start with 'ws://', received 'invalid url'");
     });
 
   });
@@ -39,7 +39,6 @@ describe('Main', () => {
       const sdk = new Main({ baseUrl: BASE_URL });
       await sdk.connect();
       // const sdk = await Main.createInstance({ baseUrl: BASE_URL });
-      await sdk.connect();
       expect(sdk['_api']?.isConnected).toBe(true);
       await sdk.disconnect().catch(() => ({}));
     });
