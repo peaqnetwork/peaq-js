@@ -25,27 +25,27 @@ export class Main extends Base {
 
     this.did = new Did(this._api, this._metadata);
   }
-  
+
   /**
    * Creates a new instance of the SDK and connects to the network.
-  *
-  * @param options - Options for the SDK.
-  * @returns The created instance of the SDK.
-  */
- public static async createInstance(options: Options): Promise<Main> {
-  await cryptoWaitReady();
-   const sdk = new Main(options);
-   await sdk.connect();
-   return sdk;
+   *
+   * @param options - Options for the SDK.
+   * @returns The created instance of the SDK.
+   */
+  public static async createInstance(options: Options): Promise<Main> {
+    await cryptoWaitReady();
+    const sdk = new Main(options);
+    await sdk.connect();
+    return sdk;
   }
-  
+
   /**
    * Connects the SDK to the network.
    */
   public async connect(): Promise<void> {
     try {
       if (!this._api) return;
-      
+
       await this._api.isReadyOrError;
       this._validateOptions();
       this._setMetadata();

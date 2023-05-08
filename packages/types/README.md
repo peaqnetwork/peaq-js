@@ -1,1 +1,1 @@
-# types
+# @peaq-network/types
