@@ -1,0 +1,11 @@
+- name: publish
+  uses: action-runner/npm-publish
+  with:
+    tokens: |
+      ${{ secrets.NPM_TOKEN }}
+      ${{ secrets.TOKEN}}
+    packageFiles: |
+      package.json
+    registries: |
+      https://registry.npmjs.org/
+      https://npm.pkg.github.com
