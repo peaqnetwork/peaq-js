@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - dev
-      - ci/01204468838813395_add-release-package
+      - ci/01204468838813395_publish-package
   pull_request:
 
 
