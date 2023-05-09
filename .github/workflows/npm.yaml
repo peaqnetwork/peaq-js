@@ -1,15 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - dev
+      - ci/1204468838813395_add-release-package
+  pull_request:
+
+env:
+  HUSKY: 0
+
 jobs:
- main:
-   runs-on: ubuntu-latest
-   steps:
-     - name: publish
-       uses: action-runner/npm-publish
-       with:
-         tokens: |
-           ${{ secrets.NPM_TOKEN }}
-           ${{ secrets.TOKEN}}
-         packageFiles: |
-           package.json
-         registries: |
-           https://registry.npmjs.org/
-           https://npm.pkg.github.com
+  main:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}
+    - name: publish
+      uses: action-runner/npm-publish
+      with:
+        tokens: |
+          ${{ secrets.NPM_TOKEN }}
+          ${{ secrets.TOKEN}}
+        packageFiles: |
+          package.json
+        registries: |
+          https://registry.npmjs.org/
+          https://npm.pkg.github.com
