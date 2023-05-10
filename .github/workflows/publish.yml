@@ -127,9 +127,12 @@ jobs:
         if: ${{ success() && (github.event_name != 'pull_request' || github.event.action == 'closed' && github.event.pull_request.merged == true) }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          username: niazhussain
         run: |
-          npx nx affected --target release --all
+          npx nx run @peaq-network/sdk:publish
+          npx nx run @peaq-network/types:publish
+         
 
           
           
@@ -139,3 +142,5 @@ jobs:
           # npx nx affected --target lint --parallel 3
           # npx nx affected --target test --parallel 3 --ci --code-coverage
           # npx nx affected --target build --parallel 3
+
+          # npx nx affected --target release --all
