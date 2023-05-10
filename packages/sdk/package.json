@@ -1,11 +1,13 @@
 {
-  "author": "peaq network <info@peaq.io>",
   "name": "@peaq-network/sdk",
-  "version": "0.2.0",
-  "description": "peaq network sdk",
+  "version": "0.0.0-semantic-release",
+  "type": "commonjs",
   "repository": {
-    "directory": "packages/types",
     "type": "git",
-    "url": "https://github.com/peaqnetwork/peaq-js.git"
+    "url": "https://github.com/peaqnetwork/peaq-js.git",
+    "directory": "packages/sdk"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   }
 }
