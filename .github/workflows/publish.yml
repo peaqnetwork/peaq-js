@@ -130,8 +130,10 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           username: niazhussain
         run: |
+          npx semantic-release-plus
           npx nx run @peaq-network/sdk:publish
           npx nx run @peaq-network/types:publish
+
          
 
           
