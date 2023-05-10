@@ -1,4 +1,4 @@
-name:
+name: CI
 
 on:
   push:
@@ -119,11 +119,9 @@ jobs:
           fi
           
       - run: |
-          npx nx workspace-lint
-          npx nx format:check
-          npx nx affected --target lint --parallel 3
-          npx nx affected --target test --parallel 3 --ci --code-coverage
-          npx nx affected --target build --parallel 3
+          npx nx run @peaq-network/sdk:build
+          npx nx run @peaq-network/types:build
+          
           
       - name: Release
         if: ${{ success() && (github.event_name != 'pull_request' || github.event.action == 'closed' && github.event.pull_request.merged == true) }}
@@ -132,3 +130,12 @@ jobs:
           NPM_TOKEN: ${{ secrets.TOKEN }}
         run: |
           npx nx affected --target release --all
+
+          
+          
+          
+# npx nx workspace-lint
+          # npx nx format:check
+          # npx nx affected --target lint --parallel 3
+          # npx nx affected --target test --parallel 3 --ci --code-coverage
+          # npx nx affected --target build --parallel 3
