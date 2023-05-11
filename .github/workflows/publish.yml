@@ -22,8 +22,9 @@ jobs:
       #- run: npx nx run @peaq-network/sdk:publish 0.2.4 next
       #  env:
       #    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - run: |
-           cd peaq-js/packages/sdk
+      - name: Publish sdk
+        working-directory: ./packages/sdk
+        run: |
            npm version patch
            npm publish
         env:
