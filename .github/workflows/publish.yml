@@ -17,6 +17,8 @@ jobs:
           scope: 'nhussain'
       #- run: npm ci
       - run: npm install
+      - name: Authenticate with private NPM package
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - run: node tools/scripts/publish.mjs @peaq-network/sdk 0.2.4 next
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
