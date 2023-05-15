@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - dev
-      - ci/1204468838813395_publish-to-npm-registry
 jobs:
   build:
     runs-on: ubuntu-latest

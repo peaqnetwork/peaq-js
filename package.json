@@ -1,6 +1,6 @@
 {
   "name": "peaq-network",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "license": "MIT",
   "scripts": {
     "prepare": "ts-patch install -s"
