@@ -1,0 +1,30 @@
+name: Publish Package to npmjs
+on:
+  push:
+    branches:
+      - dev
+      - ci/1204468838813395_publish-to-npm-registry
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        packages: [sdk,types]
+    steps:
+      - uses: actions/checkout@v3
+      # Setup .npmrc file to publish to npm
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
+          registry-url: 'https://registry.npmjs.org'
+          scope: 'nhussain'
+      #- run: npm ci
+      - run: npm install
+      - name: Authenticate with private NPM package
+        run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+      - name: Publish ${{ matrix.packages }}
+        working-directory: ./packages/${{ matrix.packages }}
+        run: |
+           npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
