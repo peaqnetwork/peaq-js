@@ -6,6 +6,7 @@
 import '@polkadot/rpc-core/types/jsonrpc';
 
 import type { Attribute } from '@peaq-network/types/interfaces/peaqdid';
+import type { Entity, EntityId, Role2User } from '@peaq-network/types/interfaces/peaqrbac';
 import type { AugmentedRpc } from '@polkadot/rpc-core/types';
 import type { Metadata, StorageKey } from '@polkadot/types';
 import type { Bytes, HashMap, Json, Null, Option, Text, U256, U64, Vec, bool, f64, u32, u64 } from '@polkadot/types-codec';
@@ -431,6 +432,20 @@ declare module '@polkadot/rpc-core/types/jsonrpc' {
        * Read attribute
        **/
       read_attribute: AugmentedRpc<(did_account: AccountId | string | Uint8Array, name: Bytes | string | Uint8Array, at: Option<BlockHash> | null | Uint8Array | BlockHash | string) => Observable<Attribute>>;
+    };
+    peaqrbac: {
+      /**
+       * Fetch Role
+       **/
+      fetch_role: AugmentedRpc<(account: AccountId | string | Uint8Array, entity: EntityId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Roles
+       **/
+      fetch_roles: AugmentedRpc<(owner: AccountId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Role
+       **/
+      fetch_user_roles: AugmentedRpc<(owner: AccountId | string | Uint8Array, user_id: EntityId | string | Uint8Array) => Observable<Role2User>>;
     };
     rpc: {
       /**

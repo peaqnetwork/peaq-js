@@ -7,7 +7,7 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
-import type { Address, ReadDidResponse, SDKMetadata } from '../../types';
+import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
 import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
@@ -74,8 +74,8 @@ export class Did extends Base {
       );
 
       const nonce = await this._getNonce(keyPair.address);
-
-      await attributeExtrinsic.signAsync(keyPair, { nonce });
+      await this._signTransaction({nonce, address: keyPair, extrinsics: attributeExtrinsic});
+      // await attributeExtrinsic.signAsync(keyPair, { nonce });
       const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback && statusCallback(result as unknown as ISubmittableResult);
       });
