@@ -24,7 +24,7 @@ export class RBAC extends Base {
   }
   /**
    * Creates a new role.
-   * @param name - The options for creating the Roles.
+   * @param options - The options for creating the Roles.
    * @returns A promise that resolves when the role is created.
    */
 
@@ -52,13 +52,13 @@ export class RBAC extends Base {
         id: id || generatedId,
       };
     } catch (error) {
-      throw new Error(`Error creating role: ${error}`);
+      throw new Error(`Error occurred while creating roles: ${error}`);
     }
   }
 
   /**
    * Fetch all roles.
-   * @param name - The ownerAddress is public address of user or owner who created a roles.
+   * @param ownerAddress - The ownerAddress is public address of user or owner who created a roles.
    * @returns A promise that resolves when the role is fetched.
    */
 
@@ -89,7 +89,7 @@ export class RBAC extends Base {
       });
       return responseData;
     } catch (error) {
-      throw new Error(`Error while fetchroles: ${error}`);
+      throw new Error(`Error occurred while fetching roles: ${error}`);
     }
   }
 }
