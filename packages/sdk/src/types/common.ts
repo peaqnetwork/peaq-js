@@ -78,6 +78,32 @@ export interface FetchRoles{
   enabled: boolean;
 }
 
+export interface ResponseFetchGroup{
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+export interface ResponsePermission{
+  permission: string,
+  role: string
+}
+
+export interface ResponseFetchUserGroups{
+  user: string,
+  group: string
+}
+
+export interface ResponseRole2User{
+  role: string,
+  user: string
+}
+
+export interface ResponseRole2Group{
+  role: string,
+  group: string
+}
+
 export interface PeaqEventData{
   lookupName: string
   data: Codec
