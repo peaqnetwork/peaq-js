@@ -9,7 +9,7 @@
   "repository": "https://github.com/peaqnetwork/peaq-js.git",
   "dependencies": {
     "@polkadot/api": "10.4.1",
-    "peaq-did-proto-js": "^1.0.0",
+    "peaq-did-proto-js": "^2.0.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
