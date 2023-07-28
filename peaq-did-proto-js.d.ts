@@ -1,65 +1,115 @@
 declare module 'peaq-did-proto-js' {
-  interface DocumentWithToObject extends Document {
-    toObject(): object;
-  }
 
   export enum VerificationType {
-    ED25519VERIFICATIONKEY2020 = 0,
-    SR25519VERIFICATIONKEY2020 = 1,
+    ED25519VERIFICATIONKEY2020 = 0, 
+    SR25519VERIFICATIONKEY2020 = 1
   }
 
   export class VerificationMethod {
-    setId(value: string): void;
-    setType(value: VerificationType): void;
-    setController(value: string): void;
-    setPublickeymultibase(value: string): void;
+
+    constructor(data?: any);
+
+    getId(): string;
+    setId(value: string): this;
+
+    getType(): VerificationType;
+    setType(value: VerificationType): this;
+
+    getController(): string;
+    setController(value: string): this;
+
+    getPublickeymultibase(): string;
+    setPublickeymultibase(value: string): this;
+
+    serializeBinary(): Uint8Array;
+    static deserializeBinary(bytes: Uint8Array): VerificationMethod;
+    static deserializeBinaryFromReader(message: VerificationMethod, reader: any): VerificationMethod;
+    toObject(includeInstance?: boolean): object;
+
   }
 
   export class Signature {
-    setType(value: VerificationType): void;
-    setIssuer(value: string): void;
-    setHash(value: string): void;
-  }
 
-  export enum ServiceType {
-    P2P = 0,
-    PAYMENT = 1,
-    METADATA = 2,
-  }
+    constructor(data?: any);
 
-  export enum Status {
-    AVAILABLE = 0,
-    UNAVAILABLE = 1,
-  }
+    getType(): VerificationType;
+    setType(value: VerificationType): this;
 
-  export class Metadata {
-    setName(value: string): void;
-    setPower(value: string): void;
-    setStatus(value: Status): void;
-    setChargepointclientid(value: string): void;
-    setConnectorscount(value: number): void;
-    setPlugtype(value: string): void;
-    setPriceperkwhr(value: number): void;
+    getIssuer(): string;
+    setIssuer(value: string): this;
+
+    getHash(): string;
+    setHash(value: string): this;
+
+    serializeBinary(): Uint8Array;
+    static deserializeBinary(bytes: Uint8Array): Signature;
+    static deserializeBinaryFromReader(message: Signature, reader: any): Signature;
+    toObject(includeInstance?: boolean): object;
+
   }
 
   export class Service {
-    setId(value: string): void;
-    setType(value: ServiceType): void;
-    setStringdata(value: string): void;
-    setMetadata(value: Metadata): void;
-    hasServiceendpoint(): boolean;
-    clearServiceendpoint(): void;
+
+    constructor(data?: any);
+
+    getId(): string;
+    setId(value: string): this;
+
+    getType(): string;
+    setType(value: string): this;
+
+    getServiceendpoint(): string;
+    setServiceendpoint(value: string): this;
+
+    getData(): string;
+    setData(value: string): this;
+
+    serializeBinary(): Uint8Array;
+    static deserializeBinary(bytes: Uint8Array): Service;
+    static deserializeBinaryFromReader(message: Service, reader: any): Service;
+    toObject(includeInstance?: boolean): object;
+
   }
 
-  export class Document implements DocumentWithToObject {
-    setId(value: string): void;
-    setController(value: string): void;
-    addVerificationmethods(value: VerificationMethod, index?: number): void;
-    setSignature(value: Signature): void;
-    addServices(value: Service, index?: number): void;
-    addAuthentications(value: string, index?: number): void;
+  export class Document {
+
+    constructor(data?: any);
+
+    getId(): string;
+    setId(value: string): this;
+
+    getController(): string;
+    setController(value: string): this;
+
+    getVerificationmethodsList(): VerificationMethod[];
+    setVerificationmethodsList(value: VerificationMethod[]): this;
+    addVerificationmethods(value?: VerificationMethod, index?: number): VerificationMethod;
+    clearVerificationmethodsList(): this;
+
+    getSignature(): Signature | undefined;
+    setSignature(value?: Signature): this;
+    hasSignature(): boolean;
+    clearSignature(): this;
+
+    getServicesList(): Service[];
+    setServicesList(value: Service[]): this;
+    addServices(value?: Service, index?: number): Service;
+    clearServicesList(): this;
+
+    getAuthenticationsList(): string[];
+    setAuthenticationsList(value: string[]): this;
+    addAuthentications(value: string, index?: number): this;
+    clearAuthenticationsList(): this;
+
     serializeBinary(): Uint8Array;
-    static deserializeBinary(binary: Uint8Array): Document;
-    toObject(): object;
+    toObject(includeInstance?: boolean): object;
+
+    static deserializeBinary(bytes: Uint8Array): Document;
+    static deserializeBinaryFromReader(message: Document, reader: any): Document;
+    static toObject(includeInstance: boolean, msg: Document): object;
+
   }
+
+  export function deserializeBinary(bytes: Uint8Array): Document;
+
 }
