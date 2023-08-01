@@ -1,7 +1,7 @@
 {
   "name": "peaq-network",
   "version": "0.2.12",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "scripts": {
     "prepare": "ts-patch install -s"
   },
