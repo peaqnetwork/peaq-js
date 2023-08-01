@@ -1,8 +1,9 @@
 {
   "author": "peaq network <info@peaq.io>",
   "name": "@peaq-network/types",
-  "version": "0.2.13",
+  "version": "0.2.14",
   "description": "Typescript definitions for the peaq network",
+  "license": "Apache-2.0",
   "repository": {
     "directory": "packages/sdk",
     "type": "git",
