@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - dev
+      - fix/1205181834632547_add-license-to-peaq-sdk-npm-reg
 jobs:
   build:
     runs-on: ubuntu-latest
