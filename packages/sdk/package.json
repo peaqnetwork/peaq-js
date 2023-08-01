@@ -1,7 +1,7 @@
 {
   "author": "peaq network <info@peaq.io>",
   "name": "@peaq-network/sdk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "peaq network sdk",
   "repository": {
     "directory": "packages/types",
