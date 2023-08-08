@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - dev
+      - fix/1205230144231031_npm-package-rebuild
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,8 +18,8 @@ jobs:
           node-version: '16.x'
           registry-url: 'https://registry.npmjs.org'
           scope: 'nhussain'
-      #- run: npm ci
-      - run: npm install
+      - run: npm ci
+      #- run: npm install
       - name: Authenticate with private NPM package
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - name: Publish ${{ matrix.packages }}
