@@ -6,7 +6,7 @@
 import '@polkadot/types/types/registry';
 
 import type { Attribute } from '@peaq-network/types/interfaces/peaqdid';
-import type { Entity, EntityId, Role2User } from '@peaq-network/types/interfaces/peaqrbac';
+import type { Entity, EntityId, Permission2Role, Role2Group, Role2User, User2Group } from '@peaq-network/types/interfaces/peaqrbac';
 import type { Data, StorageKey } from '@polkadot/types';
 import type { BitVec, Bool, Bytes, F32, F64, I128, I16, I256, I32, I64, I8, ISize, Json, Null, OptionBool, Raw, Text, Type, U128, U16, U256, U32, U64, U8, USize, bool, f32, f64, i128, i16, i256, i32, i64, i8, isize, u128, u16, u256, u32, u64, u8, usize } from '@polkadot/types-codec';
 import type { AssetApproval, AssetApprovalKey, AssetBalance, AssetDestroyWitness, AssetDetails, AssetMetadata, TAssetBalance, TAssetDepositBalance } from '@polkadot/types/interfaces/assets';
@@ -799,6 +799,7 @@ declare module '@polkadot/types/types/registry' {
     PerDispatchClassWeightsPerClass: PerDispatchClassWeightsPerClass;
     Period: Period;
     Permill: Permill;
+    Permission2Role: Permission2Role;
     PermissionLatest: PermissionLatest;
     PermissionsV1: PermissionsV1;
     PermissionVersions: PermissionVersions;
@@ -893,6 +894,7 @@ declare module '@polkadot/types/types/registry' {
     Retriable: Retriable;
     RewardDestination: RewardDestination;
     RewardPoint: RewardPoint;
+    Role2Group: Role2Group;
     Role2User: Role2User;
     RoundSnapshot: RoundSnapshot;
     RoundState: RoundState;
@@ -1124,6 +1126,7 @@ declare module '@polkadot/types/types/registry' {
     UpgradeGoAhead: UpgradeGoAhead;
     UpgradeRestriction: UpgradeRestriction;
     UpwardMessage: UpwardMessage;
+    User2Group: User2Group;
     usize: usize;
     USize: USize;
     ValidationCode: ValidationCode;

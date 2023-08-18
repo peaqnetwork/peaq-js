@@ -74,7 +74,7 @@ export class Did extends Base {
       );
 
       const nonce = await this._getNonce(keyPair.address);
-      await this._signTransaction({nonce, address: keyPair, extrinsics: attributeExtrinsic});
+      await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
       // await attributeExtrinsic.signAsync(keyPair, { nonce });
       const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback && statusCallback(result as unknown as ISubmittableResult);
