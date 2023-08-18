@@ -1,6 +1,6 @@
 {
   "name": "peaq-network",
-  "version": "0.2.0",
+  "version": "0.2.12",
   "license": "MIT",
   "scripts": {
     "prepare": "ts-patch install -s"
@@ -9,7 +9,7 @@
   "repository": "https://github.com/peaqnetwork/peaq-js.git",
   "dependencies": {
     "@polkadot/api": "10.4.1",
-    "peaq-did-proto-js": "^1.0.0",
+    "peaq-did-proto-js": "^2.0.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

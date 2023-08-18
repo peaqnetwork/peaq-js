@@ -46,3 +46,10 @@ export const truncatedString = (str: string) => {
     str.substring(0, 7) + "..." + str.substring(str.length - 5, str.length)
   );
 };
+
+export const generateRandomString = (length = 6) => {
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let result = '';
+  for (let i = length; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
+  return result;
+}

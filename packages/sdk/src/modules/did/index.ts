@@ -11,10 +11,27 @@ import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../.
 import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
+export interface CustomDocumentFields {
+  services: DocumentService[];
+}
+
+type DocumentService = {
+  id: string;
+  type: string;
+} & (
+  | {
+      serviceEndpoint: string;
+    }
+  | {
+      data: string;
+    }
+);
+
 interface CreateDidOptions {
   name: string;
   address?: Address;
   seed?: string;
+  customDocumentFields?: CustomDocumentFields;
 }
 
 interface CreateDidResult {
@@ -30,6 +47,7 @@ interface ReadDidOptions {
 interface DidDocumentOptions {
   didAccountAddress: Address;
   didControllerAddress: Address;
+  customDocumentFields?: CustomDocumentFields;
 }
 
 export class Did extends Base {
@@ -52,7 +70,7 @@ export class Did extends Base {
     try {
       const api = this._getApi();
 
-      const { name, address = '', seed = '' } = options;
+      const { name, address = '', seed = '', customDocumentFields } = options;
 
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
@@ -60,10 +78,10 @@ export class Did extends Base {
       if (!name) throw new Error('Name is required');
       if (!accountAddress) throw new Error('Address is required');
 
-
       const didDocument = this._createDidDocument({
         didAccountAddress: accountAddress,
         didControllerAddress: keyPair.address,
+        customDocumentFields,
       });
 
       const attributeExtrinsic = api.tx?.['peaqDid']?.['addAttribute'](
@@ -77,11 +95,12 @@ export class Did extends Base {
       await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
       // await attributeExtrinsic.signAsync(keyPair, { nonce });
       const unsubscribe = await attributeExtrinsic.send((result) => {
-        statusCallback && statusCallback(result as unknown as ISubmittableResult);
+        statusCallback &&
+          statusCallback(result as unknown as ISubmittableResult);
       });
 
       return {
-        hash: (attributeExtrinsic.hash) as unknown as CodecHash,
+        hash: attributeExtrinsic.hash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
@@ -94,10 +113,10 @@ export class Did extends Base {
    * @param options - The options for reading the DID attribute.
    * @returns A promise that resolves with the DID attribute.
    */
-  public async read(options: ReadDidOptions): Promise<ReadDidResponse> {
+  public async read(options: ReadDidOptions): Promise<ReadDidResponse | null> {
     const api = this._getApi();
 
-    const { name, address = '' } = options;
+    const { name, address } = options;
     const accountAddress = address || this._metadata?.pair?.address;
 
     if (!name) throw new Error('Name is required');
@@ -116,11 +135,7 @@ export class Did extends Base {
         hashed_key
       )) as unknown as Attribute;
 
-      if (!did || did.isStorageFallback) {
-        throw new Error(
-          `DID attribute not found: address=${accountAddress}, name=${name}`
-        );
-      }
+      if (!did || did.isStorageFallback) return null;
 
       const document = peaqDidProto.Document.deserializeBinary(did?.value);
 
@@ -151,6 +166,30 @@ export class Did extends Base {
     return { verificationMethod, verificationId: id };
   }
 
+  private _createService(service: DocumentService) {
+    if (!service.id) throw new Error('Service ID is required');
+    if (!service.type) throw new Error('Service type is required');
+    if (!('serviceEndpoint' in service) && !('data' in service))
+      throw new Error(
+        'Either service endpoint or data is required for service'
+      );
+
+    const documentService = new peaqDidProto.Service();
+
+    documentService.setId(service.id);
+    documentService.setType(service.type);
+
+    if ('serviceEndpoint' in service) {
+      documentService.setServiceendpoint(service.serviceEndpoint);
+    }
+
+    if ('data' in service) {
+      documentService.setData(service.data);
+    }
+
+    return documentService;
+  }
+
   private _createDidDocument(options: DidDocumentOptions): `0x${string}` {
     const document = new peaqDidProto.Document();
 
@@ -165,6 +204,13 @@ export class Did extends Base {
     document.addVerificationmethods(verificationMethod);
 
     document.addAuthentications(verificationId);
+
+    if (options.customDocumentFields?.services) {
+      options.customDocumentFields.services.forEach((service) => {
+        const documentService = this._createService(service);
+        document.addServices(documentService);
+      });
+    }
 
     const bytes = document.serializeBinary();
     return u8aToHex(bytes);
