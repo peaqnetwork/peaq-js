@@ -6,6 +6,7 @@
 import '@polkadot/rpc-core/types/jsonrpc';
 
 import type { Attribute } from '@peaq-network/types/interfaces/peaqdid';
+import type { Entity, EntityId, Permission2Role, Role2Group, Role2User, User2Group } from '@peaq-network/types/interfaces/peaqrbac';
 import type { AugmentedRpc } from '@polkadot/rpc-core/types';
 import type { Metadata, StorageKey } from '@polkadot/types';
 import type { Bytes, HashMap, Json, Null, Option, Text, U256, U64, Vec, bool, f64, u32, u64 } from '@polkadot/types-codec';
@@ -431,6 +432,56 @@ declare module '@polkadot/rpc-core/types/jsonrpc' {
        * Read attribute
        **/
       read_attribute: AugmentedRpc<(did_account: AccountId | string | Uint8Array, name: Bytes | string | Uint8Array, at: Option<BlockHash> | null | Uint8Array | BlockHash | string) => Observable<Attribute>>;
+    };
+    peaqrbac: {
+      /**
+       * Fetch Group
+       **/
+      fetch_group: AugmentedRpc<(owner: AccountId | string | Uint8Array, group_id: EntityId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Group Permissions
+       **/
+      fetch_group_permissions: AugmentedRpc<(owner: AccountId | string | Uint8Array, group_id: EntityId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Group Roles
+       **/
+      fetch_group_roles: AugmentedRpc<(owner: AccountId | string | Uint8Array, group_id: EntityId | string | Uint8Array) => Observable<Role2Group>>;
+      /**
+       * Fetch Groups
+       **/
+      fetch_groups: AugmentedRpc<(owner: AccountId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Permission
+       **/
+      fetch_permission: AugmentedRpc<(owner: AccountId | string | Uint8Array,  permission_id: EntityId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Permissions
+       **/
+      fetch_permissions: AugmentedRpc<(owner: AccountId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Role
+       **/
+      fetch_role: AugmentedRpc<(account: AccountId | string | Uint8Array, entity: EntityId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Role Permissions
+       **/
+      fetch_role_permissions: AugmentedRpc<(owner: AccountId | string | Uint8Array,  role_id: EntityId | string | Uint8Array) => Observable<Permission2Role>>;
+      /**
+       * Fetch Roles
+       **/
+      fetch_roles: AugmentedRpc<(owner: AccountId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch User Groups
+       **/
+      fetch_user_groups: AugmentedRpc<(owner: AccountId | string | Uint8Array, user_id: EntityId | string | Uint8Array) => Observable<User2Group>>;
+      /**
+       * Fetch User Permissions
+       **/
+      fetch_user_permissions: AugmentedRpc<(owner: AccountId | string | Uint8Array, user_id: EntityId | string | Uint8Array) => Observable<Entity>>;
+      /**
+       * Fetch Role
+       **/
+      fetch_user_roles: AugmentedRpc<(owner: AccountId | string | Uint8Array, user_id: EntityId | string | Uint8Array) => Observable<Role2User>>;
     };
     rpc: {
       /**

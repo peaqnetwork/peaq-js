@@ -40,6 +40,13 @@ export const unsubscribeRuntimeVersion = async (api: ApiPromise) => {
 
 export const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+export const truncatedString = (str: string) => {
+  if (!str) return "";
+  return (
+    str.substring(0, 7) + "..." + str.substring(str.length - 5, str.length)
+  );
+};
+
 export const generateRandomString = (length = 6) => {
   const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let result = '';

@@ -1,6 +1,11 @@
 import { KeyringPair } from '@polkadot/keyring/types';
 import type { AccountId32, BlockNumber, Moment } from '@polkadot/types/interfaces/runtime';
 import type { Bytes, Struct } from '@polkadot/types-codec';
+import { BN } from '@polkadot/util';
+import type { ISubmittableResult } from '@polkadot/types/types';
+import type { SubmittableExtrinsic } from '@polkadot/api-base/types';
+import type { Event, Phase } from "@polkadot/types/interfaces";
+import { Codec } from '@polkadot/types/types'
 
 export type Address = AccountId32 | string;
 
@@ -59,4 +64,60 @@ export interface Attribute extends Struct {
   readonly value: Bytes;
   readonly validity: BlockNumber;
   readonly created: Moment;
+}
+
+export interface SignTransction{
+  nonce: BN;
+  address: Address | KeyringPair;
+  extrinsics: SubmittableExtrinsic<"promise", ISubmittableResult>,
+  statusCallback?: (result: ISubmittableResult) => void;
+}
+
+export interface FetchRoles{
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+export interface ResponseFetchGroup{
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
+export interface ResponsePermission{
+  permission: string,
+  role: string
+}
+
+export interface ResponseFetchUserGroups{
+  user: string,
+  group: string
+}
+
+export interface ResponseRole2User{
+  role: string,
+  user: string
+}
+
+export interface ResponseRole2Group{
+  role: string,
+  group: string
+}
+
+export interface PeaqEventData{
+  lookupName: string
+  data: Codec
+}
+
+export interface PeaqEvent{
+  event: Event;
+  phase: Phase;
+  section: string;
+  method: string;
+  eventData: PeaqEventData[];
+  error: {
+    documentation: string[];
+    name: string
+  } | null
 }
