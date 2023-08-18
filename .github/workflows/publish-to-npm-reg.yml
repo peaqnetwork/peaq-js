@@ -27,8 +27,11 @@ jobs:
           path: ./packages/${{ matrix.packages }}
       - name: Authenticate with private NPM package
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+      - name: List files in the repository
+        run: |
+          ls -R ${{ github.workspace }}
       - name: Publish ${{ matrix.packages }}
-        working-directory: ./packages/${{ matrix.packages }}
+        working-directory: ./packages/
         run: |
            node ../tools/scripts/publish.mjs @peaq-network/${{ matrix.packages }} ${{ steps.package-version.outputs.current-version}}
         env:
