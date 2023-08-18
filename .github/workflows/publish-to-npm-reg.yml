@@ -19,12 +19,20 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           scope: 'nhussain'
       #- run: npm ci
-      - run: npm install
+      #- run: npm install
       - name: get-npm-version
         id: package-version
         uses: martinbeentjes/npm-get-version-action@v1.3.1
         with:
           path: ./packages/${{ matrix.packages }}
+      - name: Install Nx CLI
+        run: npm install -g nx
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Nx Project
+        run: nx build 
       - name: Authenticate with private NPM package
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - name: List files in the repository
