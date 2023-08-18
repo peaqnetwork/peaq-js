@@ -20,11 +20,16 @@ jobs:
           scope: 'nhussain'
       #- run: npm ci
       - run: npm install
+      - name: get-npm-version
+        id: package-version
+        uses: martinbeentjes/npm-get-version-action@v1.3.1
+        with:
+          path: ./packages/${{ matrix.packages }}
       - name: Authenticate with private NPM package
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - name: Publish ${{ matrix.packages }}
         #working-directory: ./packages/${{ matrix.packages }}
         run: |
-           node tools/scripts/publish.mjs @peaq-network/${{ matrix.packages }} --version {version} next
+           node tools/scripts/publish.mjs @peaq-network/${{ matrix.packages }} --version ${{ steps.package-version.outputs.current-version}} next
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
