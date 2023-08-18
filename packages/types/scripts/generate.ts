@@ -63,6 +63,18 @@ const customLookupDefinitions = {
           type: "Attribute<BlockNumber, Moment>",
         },
       },
+      PeaqRBAC: {
+        fetch_roles: {
+          description: "Fetch Roles",
+          params: [
+            {
+              name: "owner",
+              type: "AccountId",
+            },
+          ],
+          type: "Entity<EntityId>"
+        }
+      }
   },
   // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-var-requires
   types: require('../src/interfaces/lookup.ts').default
