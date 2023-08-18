@@ -36,8 +36,8 @@ jobs:
       - name: Authenticate with private NPM package
         run: echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
       - name: Publish ${{ matrix.packages }}
-        working-directory: ./packages/
+        #working-directory: ./packages/
         run: |
-           node ../tools/scripts/publish.mjs @peaq-network/${{ matrix.packages }} ${{ steps.package-version.outputs.current-version}}
+           node tools/scripts/publish.mjs @peaq-network/${{ matrix.packages }} ${{ steps.package-version.outputs.current-version}}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
