@@ -60,93 +60,15 @@ export class Base {
     return nonce;
   }
 
-  protected async _signTransaction(
-    option: SignTransction
-  ): Promise<PeaqEvent[]> {
-    const { extrinsics, nonce, address, statusCallback } = option;
-    const api = this._getApi();
-    let subscribed = false;
-    try {
-      await extrinsics.signAsync(address, { nonce });
-    } catch (error: any) {
-      throw new Error(error);
+  protected _validateInput(input: string){
+    const maxLength = 32
+    if(!input){
+      throw new Error("Input is required");
     }
-    try {
-      let eventsTriggeredByTx: PeaqEvent[] = [];
-      const unsub = await extrinsics.send(
-        async (result: ISubmittableResult) => {
-          if (
-            (result.status.isInBlock || result.status.isFinalized) &&
-            !subscribed
-          ) {
-            subscribed = true;
-            console.log('====yahoo====');
-            let inclusionBlockHash;
-            if (result.status.isInBlock) {
-              inclusionBlockHash = result.status.asInBlock.toString();
-            } else if (result.status.isFinalized) {
-              inclusionBlockHash = result.status.asFinalized.toString();
-            }
-            const inclusionBlockHeader = await api.rpc.chain.getHeader(
-              inclusionBlockHash
-            );
-            const inclusionBlockNr = inclusionBlockHeader.number.toBn();
-            const executionBlockStartNr = inclusionBlockNr.addn(0);
-            const executionBlockStopNr = inclusionBlockNr.addn(10);
-            const executionBlockNr = executionBlockStartNr;
-            const unsubscribeNewHeads = await api.rpc.chain.subscribeNewHeads(
-              async (lastHeader) => {
-                const lastBlockNumber = lastHeader.number.toBn();
-                if (executionBlockNr.gt(executionBlockStopNr)) {
-                  unsubscribeNewHeads();
-                  throw new Error(`Tx([${extrinsics.hash.toString()}])
-                was not executed in blocks : ${executionBlockStartNr.toString()}..${executionBlockStopNr.toString()}`);
-                }
-
-                if (lastBlockNumber.gte(executionBlockNr)) {
-                  const blockHash = await api.rpc.chain.getBlockHash(
-                    executionBlockNr
-                  );
-                  const blockHeader = await api.rpc.chain.getHeader(blockHash);
-                  const apiAt = await api.at(blockHeader.hash);
-                  const blockEvents: any = await apiAt.query?.['system']?.[
-                    'events'
-                  ];
-                  eventsTriggeredByTx = blockEvents.map((eventRecord: any) => {
-                    const { event, phase } = eventRecord;
-                    const types = event.typeDef;
-                    const eventData: PeaqEventData[] = event.data.map(
-                      (d: any, i: any) => {
-                        return {
-                          lookupName: types[i].lookupName!,
-                          data: d,
-                        };
-                      }
-                    );
-                    return {
-                      event,
-                      phase,
-                      section: event?.section,
-                      method: event.method,
-                      eventData,
-                      error: this._transactionError(event?.method, eventData),
-                    } as unknown as PeaqEvent;
-                  });
-                }
-              }
-            );
-          }
-        }
-      );
-      return eventsTriggeredByTx;
-    } catch (error: any) {
-      throw new Error(
-        error.message ||
-          error.description ||
-          error.data?.toString() ||
-          error.toString()
-      );
+    if(input.length !== maxLength){
+      throw new Error("Input should be 32 length");
     }
+    return true
   }
 
   protected async _serializeTx(
@@ -234,7 +156,7 @@ export class Base {
               let inclusionBlockHash;
               if (result.status.isInBlock) {
                 inclusionBlockHash = result.status.asInBlock.toString();
-              } else if (result.status.isFinalized) {
+              } if (result.status.isFinalized) {
                 inclusionBlockHash = result.status.asFinalized.toString();
               }
 
@@ -291,36 +213,35 @@ export class Base {
                       unsubscribeNewHeads();
                     }
 
-                    const eventsTriggeredByTx: any = [];
-                    // .map((eventRecord : any) => {
-                    //   const { event, phase } = eventRecord;
-                    //   console.log("=====running=====", event, phase)
-                    //   const types = event.typeDef;
-                    //   const eventData: PeaqEventData[] = event.data.map((d: any, i: any) => {
-                    //     return {
-                    //       lookupName: types[i].lookupName!,
-                    //       data: d
-                    //     };
-                    //   });
-                    //   return {
-                    //     event,
-                    //     phase,
-                    //     section: event.section,
-                    //     method: event.method,
-                    //     metaDocumentation: event.meta.docs.toString(),
-                    //     eventData,
-                    //     error: {
-                    //       documentation: [],
-                    //       name: ""
-                    //     }
-                    //   } as PeaqEvent;
-                    // });
+                    const eventsTriggeredByTx: any = []
+                    .map((eventRecord : any) => {
+                      const { event, phase } = eventRecord;
+                      const types = event.typeDef;
+                      const eventData: PeaqEventData[] = event.data.map((d: any, i: any) => {
+                        return {
+                          lookupName: types[i].lookupName!,
+                          data: d
+                        };
+                      });
+                      return {
+                        event,
+                        phase,
+                        section: event.section,
+                        method: event.method,
+                        metaDocumentation: event.meta.docs.toString(),
+                        eventData,
+                        error: {
+                          documentation: [],
+                          name: ""
+                        }
+                      } as PeaqEvent;
+                    });
                     resolve(eventsTriggeredByTx);
                     unsub();
                   }
                 }
               );
-            } else if (result.isError) {
+            }if (result.isError) {
               console.info(
                 'Transaction Error Result',
                 JSON.stringify(result, null, 2)

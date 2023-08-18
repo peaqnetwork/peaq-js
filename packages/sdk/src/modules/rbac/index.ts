@@ -194,12 +194,11 @@ export class RBAC extends Base {
         throw new Error('Role Id length should be 32 char only');
       const generatedRoleId = v4().slice(0, 32);
       const convertedRoleId = stringToU8a(roleId || generatedRoleId);
-      const convertedRoleName = stringToU8a(roleName);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const addRoleExtrinsics = api.tx?.['peaqRbac']?.['addRole'](
         convertedRoleId,
-        convertedRoleName
+        roleName
       );
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
@@ -230,15 +229,14 @@ export class RBAC extends Base {
         throw new Error('Group Id length should be 32 char only');
       const generatedGroupId = v4().slice(0, 32);
       const convetedGroupId = stringToU8a(groupId || generatedGroupId);
-      const convertedGroupName = stringToU8a(groupName);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const addGroupExtrinsics = api.tx?.['peaqRbac']?.['addGroup'](
         convetedGroupId,
-        convertedGroupName
+        groupName
       );
       const nonce = await this._getNonce(address || keyPair.address);
-      const response = await this._newSignTx({
+      await this._newSignTx({
         nonce,
         address: keyPair,
         extrinsics: addGroupExtrinsics,
@@ -273,12 +271,11 @@ export class RBAC extends Base {
       const convertedPermissionId = stringToU8a(
         permissionId || generatedPermissionId
       );
-      const convertedPermissionName = stringToU8a(permissionName);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const addPermissionExtrinsics = api.tx?.['peaqRbac']?.['addPermission'](
         convertedPermissionId,
-        convertedPermissionName
+        permissionName
       );
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
@@ -301,11 +298,13 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the permission is assign to role.
    */
 
-  public async assignPermissionToRole(options: AssignPermission) {
+  public async assignPermissionToRole(
+    options: AssignPermission
+  ): Promise<{ message: string }> {
     try {
       const { address = '', seed = '', permissionId, roleId } = options;
-      if (!permissionId) throw new Error('Permission Id is required');
-      if (!roleId) throw new Error('Role Id is required');
+      this._validateInput(permissionId);
+      this._validateInput(roleId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignPermissionToRoleExtrinsics = api.tx?.['peaqRbac']?.[
@@ -317,6 +316,9 @@ export class RBAC extends Base {
         address: keyPair,
         extrinsics: assignPermissionToRoleExtrinsics,
       });
+      return {
+        message: `Successfully assign permission ${permissionId} to role ${roleId}`,
+      };
     } catch (error) {
       throw new Error(
         `Error occurred while assign permission to role: ${error}`
@@ -329,11 +331,13 @@ export class RBAC extends Base {
    * @param options - The options for assigning role to group.
    * @returns A promise that resolves when the role is assign to group.
    */
-  public async assignRoleToGroup(options: AssignRoleToGroup) {
+  public async assignRoleToGroup(
+    options: AssignRoleToGroup
+  ): Promise<{ message: string }> {
     try {
       const { address = '', seed = '', groupId, roleId } = options;
-      if (!groupId) throw new Error('Group Id is required');
-      if (!roleId) throw new Error('Role Id is required');
+      this._validateInput(groupId);
+      this._validateInput(roleId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignRoleToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -345,6 +349,9 @@ export class RBAC extends Base {
         address: keyPair,
         extrinsics: assignRoleToGroupExtrinsics,
       });
+      return {
+        message: `Successfully assign role ${roleId} to group ${groupId}`,
+      };
     } catch (error) {
       throw new Error(`Error occurred while assign role to group: ${error}`);
     }
@@ -356,22 +363,27 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is assign to user.
    */
 
-  public async assignRoleToUser(options: AssignRoleToUser) {
+  public async assignRoleToUser(
+    options: AssignRoleToUser
+  ): Promise<{ message: string }> {
     try {
       const { address = '', seed = '', userId, roleId } = options;
-      if (!userId) throw new Error('User Id is required');
-      if (!roleId) throw new Error('Role Id is required');
+      this._validateInput(userId);
+      this._validateInput(roleId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignRoleToUserExtrinsics = api.tx?.['peaqRbac']?.[
         'assignRoleToUser'
-      ](stringToU8a(userId), stringToU8a(roleId));
+      ](stringToU8a(roleId), stringToU8a(userId));
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
         nonce,
         address: keyPair,
         extrinsics: assignRoleToUserExtrinsics,
       });
+      return {
+        message: `Successfully assign role ${roleId} to user ${userId}`,
+      };
     } catch (error) {
       throw new Error(`Error occurred while assign role to user: ${error}`);
     }
@@ -383,11 +395,13 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the user is assign to group.
    */
 
-  public async assignUserToGroup(options: AssignUserToGroup) {
+  public async assignUserToGroup(
+    options: AssignUserToGroup
+  ): Promise<{ message: string }> {
     try {
       const { address = '', seed = '', userId, groupId } = options;
-      if (!userId) throw new Error('User Id is required');
-      if (!groupId) throw new Error('Group Id is required');
+      this._validateInput(userId);
+      this._validateInput(groupId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignUserToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -399,6 +413,9 @@ export class RBAC extends Base {
         address: keyPair,
         extrinsics: assignUserToGroupExtrinsics,
       });
+      return {
+        message: `Successfully assign user ${userId} to group ${groupId}`,
+      };
     } catch (error) {
       throw new Error(`Error occurred while assign user to group: ${error}`);
     }
@@ -410,10 +427,12 @@ export class RBAC extends Base {
    * @returns A promise that resolves when group is disable.
    */
 
-  public async disableGroup(options: DisbaleGroup) {
+  public async disableGroup(
+    options: DisbaleGroup
+  ): Promise<{ message: string }> {
     try {
       const { groupId, address = '', seed = '' } = options;
-      if (!groupId) throw new Error('GroupId is required');
+      this._validateInput(groupId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const disableGroupExtrinsics = api.tx?.['peaqRbac']?.['disableGroup'](
@@ -425,6 +444,9 @@ export class RBAC extends Base {
         address: keyPair,
         extrinsics: disableGroupExtrinsics,
       });
+      return {
+        message: `Successfully disable group ${groupId}`,
+      };
     } catch (error) {
       throw new Error(`Error occurred while disable group: ${error}`);
     }
@@ -436,10 +458,12 @@ export class RBAC extends Base {
    * @returns A promise that resolves when permission is disable.
    */
 
-  public async disablePermission(options: DisbalePermission) {
+  public async disablePermission(
+    options: DisbalePermission
+  ): Promise<{ message: string }> {
     try {
       const { permissionId, address = '', seed = '' } = options;
-      if (!permissionId) throw new Error('PermissionId is required');
+      this._validateInput(permissionId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const disableGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -451,6 +475,9 @@ export class RBAC extends Base {
         address: keyPair,
         extrinsics: disableGroupExtrinsics,
       });
+      return {
+        message: `Successfully disable permission ${permissionId}`,
+      };
     } catch (error) {
       throw new Error(`Error occurred while disable permission: ${error}`);
     }
@@ -462,10 +489,10 @@ export class RBAC extends Base {
    * @returns A promise that resolves when role is disable.
    */
 
-  public async disableRole(options: DisbaleRole) {
+  public async disableRole(options: DisbaleRole): Promise<{ message: string }> {
     try {
       const { roleId, address = '', seed = '' } = options;
-      if (!roleId) throw new Error('RoleId is required');
+      this._validateInput(roleId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const disableGroupExtrinsics = api.tx?.['peaqRbac']?.['disableRole'](
@@ -477,6 +504,9 @@ export class RBAC extends Base {
         address: keyPair,
         extrinsics: disableGroupExtrinsics,
       });
+      return {
+        message: `Successfully disable role ${roleId}`,
+      };
     } catch (error) {
       throw new Error(`Error occurred while disable role: ${error}`);
     }
@@ -528,6 +558,7 @@ export class RBAC extends Base {
   public async fetchGroup(option: FetchGroup): Promise<ResponseFetchGroup> {
     try {
       const { groupId, owner } = option;
+      this._validateInput(groupId);
       const { hashed_key } = createStorageKeys([
         {
           value: owner,
@@ -576,6 +607,7 @@ export class RBAC extends Base {
   ): Promise<ResponseFetchGroup[]> {
     try {
       const { groupId, owner } = option;
+      this._validateInput(groupId);
       const api = await this._getApi();
       const { hashed_key: role2GroupStoreKey } = createStorageKeys([
         {
@@ -587,7 +619,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
         {
-          value: 'Role2Group',
+          value: 'R2G',
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
@@ -634,6 +666,7 @@ export class RBAC extends Base {
   ): Promise<ResponseRole2Group[]> {
     try {
       const { groupId, owner } = option;
+      this._validateInput(groupId);
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -645,7 +678,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
         {
-          value: 'Role2Group',
+          value: 'R2G',
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
@@ -696,6 +729,7 @@ export class RBAC extends Base {
   ): Promise<ResponseFetchGroup> {
     try {
       const { owner, permissionId } = option;
+      this._validateInput(permissionId);
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -760,6 +794,7 @@ export class RBAC extends Base {
   public async fetchRole(option: FetchRole): Promise<FetchRoles | undefined> {
     try {
       const { owner, roleId } = option;
+      this._validateInput(roleId);
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -805,6 +840,7 @@ export class RBAC extends Base {
   ): Promise<ResponsePermission[]> {
     try {
       const { owner, roleId } = option;
+      this._validateInput(roleId);
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -816,7 +852,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
         {
-          value: 'Permission2Role',
+          value: 'P2R',
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
@@ -847,6 +883,7 @@ export class RBAC extends Base {
   ): Promise<ResponseFetchUserGroups[]> {
     try {
       const { owner, userId } = option;
+      this._validateInput(userId);
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -858,7 +895,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
         {
-          value: 'User2Group',
+          value: 'U2G',
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
@@ -885,9 +922,10 @@ export class RBAC extends Base {
 
   public async fetchUserPermissions(
     option: FetchUserPermissions
-  ): Promise<ResponseFetchGroup[] | undefined> {
+  ): Promise<ResponseFetchGroup[]> {
     try {
       const { owner, userId } = option;
+      this._validateInput(userId);
       const api = await this._getApi();
       const { hashed_key: Role2User_Key } = createStorageKeys([
         {
@@ -899,7 +937,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
         {
-          value: 'Role2User',
+          value: 'R2U',
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
@@ -914,7 +952,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
         {
-          value: 'User2Group',
+          value: 'U2G',
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
@@ -951,7 +989,7 @@ export class RBAC extends Base {
       const responseUser2Group: ResponseFetchUserGroups[] = user2GroupData?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
-      if (responseRole2User.length === 0) {
+      if (responseUser2Group.length === 0) {
         return permissions;
       }
       for (const resUser2Group1 of responseUser2Group) {
@@ -991,9 +1029,10 @@ export class RBAC extends Base {
 
   public async fetchUserRoles(
     option: FetchUserRoles
-  ): Promise<ResponseRole2User[] | undefined> {
+  ): Promise<ResponseRole2User[]> {
     try {
       const { owner, userId } = option;
+      this._validateInput(userId);
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -1005,7 +1044,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
         {
-          value: 'Role2User',
+          value: 'R2U',
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
@@ -1033,20 +1072,13 @@ export class RBAC extends Base {
 
   public async unassignPermissionToRole(
     option: UnassignPermissionToRole
-  ): Promise<
-    | {
-        hash: CodecHash;
-      }
-    | undefined
-  > {
+  ): Promise<{
+    message: string;
+  }> {
     try {
       const { permissionId, roleId, address = '', seed = '' } = option;
-      if (!permissionId) throw new Error('Permission Id is required');
-      if (!roleId) throw new Error('Role Id is required');
-      if (permissionId && permissionId.length !== 32)
-        throw new Error('Permission Id should be 32 char only');
-      if (roleId && roleId.length !== 32)
-        throw new Error('Role Id should be 32 char only');
+      this._validateInput(permissionId);
+      this._validateInput(roleId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignPermissionToRoleExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1059,7 +1091,7 @@ export class RBAC extends Base {
         extrinsics: unassignPermissionToRoleExtrinsics,
       });
       return {
-        hash: unassignPermissionToRoleExtrinsics.hash as unknown as CodecHash,
+        message: `Successfully unassign role: ${roleId} from permission: ${permissionId}`,
       };
     } catch (error) {
       throw new Error(
@@ -1074,20 +1106,13 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is unassign to group.
    */
 
-  public async unassignRoleToGroup(option: UnassignRoleToGroup): Promise<
-    | {
-        hash: CodecHash;
-      }
-    | undefined
-  > {
+  public async unassignRoleToGroup(option: UnassignRoleToGroup): Promise<{
+    message: string;
+  }> {
     try {
       const { roleId, groupId, address = '', seed = '' } = option;
-      if (!roleId) throw new Error('Role Id is required');
-      if (!groupId) throw new Error('Group Id is required');
-      if (roleId && roleId.length !== 32)
-        throw new Error('Role Id should be 32 char only');
-      if (groupId && groupId.length !== 32)
-        throw new Error('Group Id should be 32 char only');
+      this._validateInput(roleId);
+      this._validateInput(groupId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignRoleToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1100,7 +1125,7 @@ export class RBAC extends Base {
         extrinsics: unassignRoleToGroupExtrinsics,
       });
       return {
-        hash: unassignRoleToGroupExtrinsics.hash as unknown as CodecHash,
+        message: `Successfully unassign role: ${roleId} from group: ${groupId}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while unassign role to group: ${error}`);
@@ -1113,20 +1138,13 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is unassign to user.
    */
 
-  public async unassignRoleToUser(option: UnassignRoleToUser): Promise<
-    | {
-        hash: CodecHash;
-      }
-    | undefined
-  > {
+  public async unassignRoleToUser(option: UnassignRoleToUser): Promise<{
+    message: string;
+  }> {
     try {
       const { userId, roleId, address = '', seed = '' } = option;
-      if (!roleId) throw new Error('Role Id is required');
-      if (!userId) throw new Error('User Id is required');
-      if (roleId && roleId.length !== 32)
-        throw new Error('Role Id should be 32 char only');
-      if (userId && userId.length !== 32)
-        throw new Error('User Id should be 32 char only');
+      this._validateInput(userId);
+      this._validateInput(roleId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignRoleToUserExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1139,7 +1157,7 @@ export class RBAC extends Base {
         extrinsics: unassignRoleToUserExtrinsics,
       });
       return {
-        hash: unassignRoleToUserExtrinsics.hash as unknown as CodecHash,
+        message: `Successfully unassign user: ${userId} from role: ${roleId}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while unassign role to user: ${error}`);
@@ -1152,20 +1170,13 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the user is unassign to group.
    */
 
-  public async unassignUserToGroup(option: UnassignUserToGroup): Promise<
-    | {
-        hash: CodecHash;
-      }
-    | undefined
-  > {
+  public async unassignUserToGroup(option: UnassignUserToGroup): Promise<{
+    message: string;
+  }> {
     try {
       const { userId, groupId, address = '', seed = '' } = option;
-      if (!groupId) throw new Error('Group Id is required');
-      if (!userId) throw new Error('User Id is required');
-      if (groupId && groupId.length !== 32)
-        throw new Error('Group Id should be 32 char only');
-      if (userId && userId.length !== 32)
-        throw new Error('User Id should be 32 char only');
+      this._validateInput(userId);
+      this._validateInput(groupId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignUserToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1178,7 +1189,7 @@ export class RBAC extends Base {
         extrinsics: unassignUserToGroupExtrinsics,
       });
       return {
-        hash: unassignUserToGroupExtrinsics.hash as unknown as CodecHash,
+        message: `Successfully unassign user: ${userId} from group: ${groupId}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while unassign role to user: ${error}`);
@@ -1191,23 +1202,18 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the group is updated.
    */
 
-  public async updateGroup(option: UpdateGroup): Promise<
-    | {
-        hash: CodecHash;
-      }
-    | undefined
-  > {
+  public async updateGroup(option: UpdateGroup): Promise<{
+    message: string;
+  }> {
     try {
       const { name, groupId, address = '', seed = '' } = option;
-      if (!groupId) throw new Error('Group Id is required');
       if (!name) throw new Error('Name is required');
-      if (groupId && groupId.length !== 32)
-        throw new Error('Group Id should be 32 char only');
+      this._validateInput(groupId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const updateGroupExtrinsics = api.tx?.['peaqRbac']?.['updateGroup'](
         stringToU8a(groupId),
-        stringToU8a(name)
+        name
       );
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
@@ -1216,7 +1222,7 @@ export class RBAC extends Base {
         extrinsics: updateGroupExtrinsics,
       });
       return {
-        hash: updateGroupExtrinsics.hash as unknown as CodecHash,
+        message: `Successfully update group ${groupId} with new name: ${name}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while update group: ${error}`);
@@ -1229,23 +1235,18 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the permission is updated.
    */
 
-  public async updatePermission(option: UpdatePermission): Promise<
-    | {
-        hash: CodecHash;
-      }
-    | undefined
-  > {
+  public async updatePermission(option: UpdatePermission): Promise<{
+    message: string;
+  }> {
     try {
       const { name, permissionId, address = '', seed = '' } = option;
-      if (!permissionId) throw new Error('Permission Id is required');
       if (!name) throw new Error('Name is required');
-      if (permissionId && permissionId.length !== 32)
-        throw new Error('Permission Id should be 32 char only');
+      this._validateInput(permissionId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const updatePermissionExtrinsics = api.tx?.['peaqRbac']?.[
         'updatePermission'
-      ](stringToU8a(permissionId), stringToU8a(name));
+      ](stringToU8a(permissionId), name);
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
         nonce,
@@ -1253,7 +1254,7 @@ export class RBAC extends Base {
         extrinsics: updatePermissionExtrinsics,
       });
       return {
-        hash: updatePermissionExtrinsics.hash as unknown as CodecHash,
+        message: `Successfully update permission ${permissionId} with new name: ${name}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while update permission: ${error}`);
@@ -1266,23 +1267,18 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is updated.
    */
 
-  public async updateRole(option: UpdateRole): Promise<
-    | {
-        hash: CodecHash;
-      }
-    | undefined
-  > {
+  public async updateRole(option: UpdateRole): Promise<{
+    message: string;
+  }> {
     try {
       const { name, roleId, address = '', seed = '' } = option;
-      if (!roleId) throw new Error('Role Id is required');
       if (!name) throw new Error('Name is required');
-      if (roleId && roleId.length !== 32)
-        throw new Error('Role Id should be 32 char only');
+      this._validateInput(roleId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const updateRoleExtrinsics = api.tx?.['peaqRbac']?.['updateRole'](
         stringToU8a(roleId),
-        stringToU8a(name)
+        name
       );
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
@@ -1291,7 +1287,7 @@ export class RBAC extends Base {
         extrinsics: updateRoleExtrinsics,
       });
       return {
-        hash: updateRoleExtrinsics.hash as unknown as CodecHash,
+        message: `Successfully update role ${roleId} with new name: ${name}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while update role: ${error}`);
