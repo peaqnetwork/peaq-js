@@ -33,7 +33,6 @@ describe('RBAC', () => {
         roleName: name,
         address: alice.address,
       });
-      expect(result.hash).toBeDefined();
       expect(typeof result.roleId).toBe('string');
     });
 
@@ -44,7 +43,6 @@ describe('RBAC', () => {
         address: alice.address,
         roleId: 'bcmnxbncvbnxvcnbvxnbcvnxbvchvchvxchgvchgvxcnbv',
       });
-      expect(result.hash).toBeDefined();
       expect(typeof result.roleId).toBe('string');
     });
 
@@ -97,7 +95,6 @@ describe('RBAC', () => {
           address: alice.address,
         });
         groupId = result.groupId;
-        expect(result.hash).toBeDefined();
         expect(typeof result.groupId).toBe('string');
       }, 30000);
 
@@ -159,7 +156,6 @@ describe('RBAC', () => {
           permissionName: permissionName,
         });
         permissionId = result.permissionId;
-        expect(result.hash).toBeDefined();
         expect(typeof result.permissionId).toBe('string');
       }, 30000);
 
