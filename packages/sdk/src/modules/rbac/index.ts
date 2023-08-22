@@ -186,7 +186,9 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is created.
    */
 
-  public async createRole(options: CreateNewRole) {
+  public async createRole(options: CreateNewRole): Promise<{
+    roleId: string;
+  }> {
     try {
       const { roleName, roleId = '', address = '', seed = '' } = options;
       if (!roleName) throw new Error('Name is required');
@@ -207,8 +209,7 @@ export class RBAC extends Base {
         extrinsics: addRoleExtrinsics,
       });
       return {
-        hash: addRoleExtrinsics.hash as unknown as CodecHash,
-        roleId: roleId || convertedRoleId,
+        roleId: roleId || generatedRoleId,
       };
     } catch (error) {
       throw new Error(`Error occurred while creating roles: ${error}`);
@@ -221,7 +222,9 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the group is created.
    */
 
-  public async createNewGroup(options: CreateNewGroup) {
+  public async createNewGroup(options: CreateNewGroup): Promise<{
+    groupId: string;
+  }> {
     try {
       const { groupName, groupId = '', address = '', seed = '' } = options;
       if (!groupName) throw new Error('Name is required');
@@ -242,7 +245,6 @@ export class RBAC extends Base {
         extrinsics: addGroupExtrinsics,
       });
       return {
-        hash: addGroupExtrinsics.hash as unknown as CodecHash,
         groupId: groupId || generatedGroupId,
       };
     } catch (error) {
@@ -256,7 +258,9 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the permission is created.
    */
 
-  public async createPermission(options: CreateNewPermission) {
+  public async createPermission(options: CreateNewPermission): Promise<{
+    permissionId: string;
+  }> {
     try {
       const {
         permissionName,
@@ -284,7 +288,6 @@ export class RBAC extends Base {
         extrinsics: addPermissionExtrinsics,
       });
       return {
-        hash: addPermissionExtrinsics.hash as unknown as CodecHash,
         permissionId: permissionId || generatedPermissionId,
       };
     } catch (error) {
