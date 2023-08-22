@@ -7,6 +7,7 @@ import type { Options, SDKMetadata } from '../../types';
 
 import { Base } from '../base';
 import { Did } from '../did';
+import { RBAC } from "../rbac";
 
 /**
  * Main class for interacting with the SDK.
@@ -16,6 +17,7 @@ export class Main extends Base {
   protected override _api: ApiPromise;
   private _metadata: SDKMetadata;
   public did: Did;
+  public rbac: RBAC;
 
   constructor(options: Options) {
     super();
@@ -24,6 +26,7 @@ export class Main extends Base {
     this._metadata = {};
 
     this.did = new Did(this._api, this._metadata);
+    this.rbac = new RBAC(this._api, this._metadata);
   }
 
   /**

@@ -130,7 +130,7 @@ export class Base {
   protected async _newSignTx(option: SignTransction): Promise<PeaqEvent[]> {
     return new Promise<PeaqEvent[]>(async (resolve, reject) => {
       const { extrinsics, nonce, address, statusCallback } = option;
-      const api = await this._getApi();
+      const api = this._getApi();
       let subscribed = false;
 
       try {

@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - dev
-      - fix/1205230144231031_npm-package-rebuild
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -38,6 +37,6 @@ jobs:
       - name: Publish ${{ matrix.packages }}
         #working-directory: ./packages/
         run: |
-           node tools/scripts/publish.mjs @peaq-network/${{ matrix.packages }} ${{ steps.package-version.outputs.current-version}}
+           node tools/scripts/publish.mjs @peaq-network/${{ matrix.packages }} ${{ steps.package-version.outputs.current-version}} latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
