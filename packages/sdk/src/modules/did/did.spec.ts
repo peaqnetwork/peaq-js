@@ -44,6 +44,11 @@ describe('Did', () => {
             data: 'data',
           },
         ],
+        signature: {
+          type: "ED25519VERIFICATIONKEY2020",
+          issuer: 'testIssuer',
+          hash: 'testHash',
+        },
       };
 
       const result = await did.create({
@@ -98,7 +103,7 @@ describe('Did', () => {
     it('should read a DID', async () => {
       const name = 'test-did-19';
       const result = await did.read({ address: alice.address, name });
-
+      
       expect(result).toBeDefined();
       expect(result?.value).toBeDefined();
       expect(result?.validity).toBeDefined();
@@ -106,6 +111,9 @@ describe('Did', () => {
       expect(result?.document.id).toBeDefined();
       expect(result?.name).toBe(name);
       expect(result?.created).toBeDefined();
+      expect(result?.document.signature.type).toEqual(0);
+      expect(result?.document.signature.issuer).toEqual('testIssuer');
+      expect(result?.document.signature.hash).toEqual('testHash');
     });
   });
 });

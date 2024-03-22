@@ -1,7 +1,7 @@
 {
   "author": "peaq network <info@peaq.io>",
   "name": "@peaq-network/sdk",
-  "version": "0.4.5",
+  "version": "0.5.0",
   "description": "peaq network sdk",
   "license": "Apache-2.0",
   "repository": {

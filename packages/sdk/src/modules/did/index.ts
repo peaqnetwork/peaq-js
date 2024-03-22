@@ -12,8 +12,17 @@ import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
 export interface CustomDocumentFields {
-  services: DocumentService[];
+  services?: DocumentService[];
+  signature?: DocumentSignature;
 }
+
+type VerificationMethodType = "ED25519VERIFICATIONKEY2020" | "SR25519VERIFICATIONKEY2020";
+
+type DocumentSignature = {
+  type: VerificationMethodType;
+  issuer: string;
+  hash: string;
+};
 
 type DocumentService = {
   id: string;
@@ -152,18 +161,13 @@ export class Did extends Base {
     return `did:peaq:${address}`;
   }
 
-  private _createVerificationMethod(address: Address) {
-    const id = uuidv4();
-    const verificationMethod = new peaqDidProto.VerificationMethod();
-
-    verificationMethod.setId(id);
-    verificationMethod.setType(
-      peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
-    );
-    verificationMethod.setController(this._getDidId(address));
-    verificationMethod.setPublickeymultibase(`z${address}`);
-
-    return { verificationMethod, verificationId: id };
+  private _createSignature(signatureData: DocumentSignature): peaqDidProto.Signature {
+    const { type, issuer, hash } = signatureData;
+    const signature = new peaqDidProto.Signature();
+    signature.setType(peaqDidProto.VerificationType[type]);
+    signature.setIssuer(issuer);
+    signature.setHash(hash);
+    return signature;
   }
 
   private _createService(service: DocumentService) {
@@ -190,6 +194,20 @@ export class Did extends Base {
     return documentService;
   }
 
+  private _createVerificationMethod(address: Address) {
+    const id = uuidv4();
+    const verificationMethod = new peaqDidProto.VerificationMethod();
+
+    verificationMethod.setId(id);
+    verificationMethod.setType(
+      peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+    );
+    verificationMethod.setController(this._getDidId(address));
+    verificationMethod.setPublickeymultibase(`z${address}`);
+
+    return { verificationMethod, verificationId: id };
+  }
+
   private _createDidDocument(options: DidDocumentOptions): `0x${string}` {
     const document = new peaqDidProto.Document();
 
@@ -210,6 +228,10 @@ export class Did extends Base {
         const documentService = this._createService(service);
         document.addServices(documentService);
       });
+    }
+    if (options.customDocumentFields?.signature) {
+      const signature = this._createSignature(options.customDocumentFields?.signature);
+      document.setSignature(signature);
     }
 
     const bytes = document.serializeBinary();
