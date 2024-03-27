@@ -7,7 +7,7 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
-import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
+import type { Address, ReadDidResponse, SDKMetadata } from '../../types';
 import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
