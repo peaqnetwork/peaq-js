@@ -4,7 +4,7 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import { unsubscribeRuntimeVersion } from '../../utils';
 import { RBAC } from './index';
 
-const BASE_URL = process.env['NX_NETWORK_BASE_URL'] as string;
+const BASE_URL = "wss://wsspc1-qa.agung.peaq.network"; //process.env['NX_NETWORK_BASE_URL'] as string;
 
 describe('RBAC', () => {
   let api: ApiPromise;
@@ -34,17 +34,18 @@ describe('RBAC', () => {
         address: alice.address,
       });
       expect(typeof result.roleId).toBe('string');
-    });
+    }, 30000);
 
     it('should create a new role with coustom id ID', async () => {
       const name = 'test-1-create-coustom-roleID-rohan-ye';
       const result = await rbac.createRole({
         roleName: name,
         address: alice.address,
-        roleId: 'bcmnxbncvbnxvcnbvxnbcvnxbvchvchvxchgvchgvxcnbv',
+        roleId: 'bcmnxbncvbnxvcnbvxnbcvnxbvchvchv',
       });
+      expect(result.roleId).toBe('bcmnxbncvbnxvcnbvxnbcvnxbvchvchv');
       expect(typeof result.roleId).toBe('string');
-    });
+    }, 30000);
 
     it('should throw an error if name is not provided', async () => {
       await expect(
@@ -68,18 +69,18 @@ describe('RBAC', () => {
       });
       expect(typeof result.message).toBe('string');
       expect(result.message).toContain('Successfully disable role');
-    }, 30000);
+    }, 30500);
   });
 
-  describe('fetchRoles()', () => {
+  describe('fetch Roles, groups, and permissions', () => {
     it('should throw an error when owner address is not provided', async () => {
-      await expect(rbac.fetchRoles('')).rejects.toThrow(
+      await expect(rbac.fetchRoles({owner: ''})).rejects.toThrow(
         'Invalid owner address'
       );
     });
 
     it('should fetch roles', async () => {
-      const response = await rbac.fetchRoles(alice.address);
+      const response = await rbac.fetchRoles({owner: alice.address});
       expect(typeof response).toBe('object');
       if (response.length > 0) {
         expect(typeof response[0].id).toBe('string');
@@ -87,6 +88,25 @@ describe('RBAC', () => {
         expect(typeof response[0].enabled).toBe('boolean');
       }
     });
+    it('should fetch groups', async () => {
+      const response = await rbac.fetchGroups({owner: alice.address});
+      expect(typeof response).toBe('object');
+      if (response.length > 0) {
+        expect(typeof response[0].id).toBe('string');
+        expect(typeof response[0].name).toBe('string');
+        expect(typeof response[0].enabled).toBe('boolean');
+      }
+    });
+    it('should fetch permissions', async () => {
+      const response = await rbac.fetchPermissions({owner: alice.address});
+      expect(typeof response).toBe('object');
+      if (response.length > 0) {
+        expect(typeof response[0].id).toBe('string');
+        expect(typeof response[0].name).toBe('string');
+        expect(typeof response[0].enabled).toBe('boolean');
+      }
+    });
+  });
     describe(' Group ', () => {
       it('create new group', async () => {
         const name = 'rohan-group';
@@ -110,11 +130,14 @@ describe('RBAC', () => {
 
       it('fetch group permission()', async () => {
         const response = await rbac.fetchGroupPermissions({
-          groupId: groupId,
           owner: alice.address,
+          groupId: '5bff002a-926d-4e08-88d5-1e7304a2'          
         });
+        expect(typeof response).toBe('object');
+        expect(typeof response[0].id).toBe('string');
+        expect(typeof response[0].name).toBe('string');
+        expect(typeof response[0].enabled).toBe('boolean');
       });
-
       it('fetch group roles()', async () => {
         const response = await rbac.fetchGroupRoles({
           groupId: groupId,
@@ -131,13 +154,14 @@ describe('RBAC', () => {
         expect(result.message).toContain('Successfully assign role');
       }, 30000);
       it('assign user to group', async () => {
+
         const result = await rbac.assignUserToGroup({
           groupId: '5bff002a-926d-4e08-88d5-1e7304a2',
-          userId: alice.address,
+          userId: '5GrwvaEF5zXb26Fz9rcQpDWS57CtERHp',
         });
         expect(typeof result.message).toBe('string');
         expect(result.message).toContain('Successfully assign user');
-      }, 30000);
+      }, 30500);
 
       it('disable group', async () => {
         const result = await rbac.disableGroup({
@@ -238,4 +262,3 @@ describe('RBAC', () => {
       }, 30000);
     });
   });
-});
