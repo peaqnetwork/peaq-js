@@ -4,7 +4,7 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import { unsubscribeRuntimeVersion } from '../../utils';
 import { RBAC } from './index';
 
-const BASE_URL = "wss://wsspc1-qa.agung.peaq.network"; //process.env['NX_NETWORK_BASE_URL'] as string;
+const BASE_URL = process.env['NX_NETWORK_BASE_URL'] as string;
 
 describe('RBAC', () => {
   let api: ApiPromise;
