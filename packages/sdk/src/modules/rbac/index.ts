@@ -7,8 +7,9 @@ import { stringToU8a } from '@polkadot/util';
 import type {
   SDKMetadata,
   Address,
+  ResponseFetchRole,
   ResponseFetchGroup,
-  ResponsePermission,
+  ResponseFetchPermission,
   ResponseFetchUserGroups,
   ResponseRole2User,
   ResponseRole2Group,
@@ -533,7 +534,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is fetched.
    */
 
-  public async fetchRoles(options: FetchRoles): Promise<ResponseFetchGroup[]> {
+  public async fetchRoles(options: FetchRoles): Promise<ResponseFetchRole[]> {
     try {
       const { owner } = options;
       if (!owner) throw new Error('Invalid owner address');
@@ -546,7 +547,7 @@ export class RBAC extends Base {
           `Roles not exits with this owner address = ${owner}`
         );
       }
-      const responseData: ResponseFetchGroup[] = roles?.map(
+      const responseData: ResponseFetchRole[] = roles?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
       return responseData;
@@ -847,7 +848,7 @@ export class RBAC extends Base {
 
   public async fetchRolePermissions(
     option: FetchRolePermissions
-  ): Promise<ResponsePermission[]> {
+  ): Promise<ResponseFetchPermission[]> {
     try {
       const { owner, roleId } = option;
       this._validateInput(roleId);
@@ -871,7 +872,7 @@ export class RBAC extends Base {
       ](hashed_key)) as unknown as Permission2Role[];
       if (!rolePermissions)
         throw new Error(`Permission not exits with this roleId = ${roleId}`);
-      const responeRolePermission: ResponsePermission[] = rolePermissions?.map(
+      const responeRolePermission: ResponseFetchPermission[] = rolePermissions?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
       return responeRolePermission;

@@ -74,13 +74,19 @@ export interface SignTransction{
 }
 
 
+export interface ResponseFetchRole{
+  id: string;
+  name: string;
+  enabled: boolean;
+}
+
 export interface ResponseFetchGroup{
   id: string;
   name: string;
   enabled: boolean;
 }
 
-export interface ResponsePermission{
+export interface ResponseFetchPermission{
   permission: string,
   role: string
 }
