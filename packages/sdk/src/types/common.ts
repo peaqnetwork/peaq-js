@@ -111,7 +111,7 @@ export interface PeaqEvent{
   section: string;
   method: string;
   eventData: PeaqEventData[];
-  error: {
+  error?: {
     documentation: string[];
     name: string
   } | null

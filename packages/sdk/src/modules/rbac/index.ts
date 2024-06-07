@@ -527,33 +527,6 @@ export class RBAC extends Base {
     }
   }
 
-  /**
-   * Fetch all roles.
-   * @param options - The ownerAddress is public address of user or owner who created a roles.
-   * @returns A promise that resolves when the role is fetched.
-   */
-
-  public async fetchRoles(options: FetchRoles): Promise<ResponseFetchGroup[]> {
-    try {
-      const { owner } = options;
-      if (!owner) throw new Error('Invalid owner address');
-      const api = this._getApi();
-      const roles = (await api.query?.['peaqRbac']?.['roleStore'](
-        owner
-      )) as unknown as Entity[];
-      if (!roles) {
-        throw new Error(
-          `Roles not exits with this owner address = ${owner}`
-        );
-      }
-      const responseData: ResponseFetchGroup[] = roles?.map(
-        (item) => JSON.parse(JSON.stringify(item.toHuman()))
-      );
-      return responseData;
-    } catch (error) {
-      throw new Error(`Error occurred while fetching roles: ${error}`);
-    }
-  }
 
   /**
    * Fetch all group.
@@ -836,6 +809,38 @@ export class RBAC extends Base {
       };
     } catch (error) {
       throw new Error(`Error occurred while fetching role: ${error}`);
+    }
+  }
+
+
+  // hashed key to fetchRoles?? Or nah
+  /**
+   * Fetch all roles.
+   * @param options - The ownerAddress is public address of user or owner who created a roles.
+   * @returns A promise that resolves when the role is fetched.
+   */
+
+  public async fetchRoles(options: FetchRoles): Promise<ResponseFetchGroup[]> {
+    try {
+      const { owner } = options;
+      if (!owner) throw new Error('Invalid owner address');
+      const api = this._getApi();
+
+      const roles = (await api.query?.['peaqRbac']?.['roleStore'](
+        owner
+      )) as unknown as Entity[];
+
+      if (!roles) {
+        throw new Error(
+          `Roles not exits with this owner address = ${owner}`
+        );
+      }
+      const responseData: ResponseFetchGroup[] = roles?.map(
+        (item) => JSON.parse(JSON.stringify(item.toHuman()))
+      );
+      return responseData;
+    } catch (error) {
+      throw new Error(`Error occurred while fetching roles: ${error}`);
     }
   }
 

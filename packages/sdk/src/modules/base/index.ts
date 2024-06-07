@@ -1,4 +1,4 @@
-import { BN, isHex, hexToU8a } from '@polkadot/util';
+import { BN, isHex, hexToU8a, u8aToHex, hexToString, u8aToString } from '@polkadot/util';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { ApiPromise, Keyring } from '@polkadot/api';
 import { ISubmittableResult } from '@polkadot/types/types';
@@ -14,10 +14,20 @@ import { AnyTuple } from '@polkadot/types-codec/types';
 import { truncatedString } from '../../utils';
 
 type TErrorData = {
-  Module?: {
-    index?: string;
-    error?: string;
-  };
+  dispatchError?: {
+    Module?: {
+      index?: string;
+      error?: string;
+    };
+  }
+  dispatchInfo?: {
+    weight?: {
+      refTime?: string,
+      proofSize?: string
+    },
+    class?: string,
+    paysFee?: string
+  }
 };
 
 export class Base {
@@ -90,17 +100,16 @@ export class Base {
 
   protected async _transactionError(
     method: string,
-    eventData: PeaqEventData[]
-  ): Promise<{ documentation: string[]; name: string } | null> {
+    eventData: PeaqEventData
+  ): Promise<{ documentation: string[]; name: string, section: string} | null> {
     const failedEvent = method === 'ExtrinsicFailed';
     const api = this._getApi();
     if (failedEvent) {
-      const error = eventData.find((item) =>
-        item.lookupName.includes('DispatchError')
-      );
+      const error = eventData;
       const errorData = error?.data?.toHuman?.() as TErrorData | undefined;
-      const errorIdx = errorData?.Module?.error;
-      const moduleIdx = errorData?.Module?.index;
+
+      const errorIdx = errorData?.dispatchError?.Module?.error;
+      const moduleIdx = errorData?.dispatchError?.Module?.index;
       if (errorIdx && moduleIdx) {
         try {
           const decode = api.registry.findMetaError({
@@ -110,11 +119,13 @@ export class Base {
           return {
             documentation: decode.docs,
             name: decode.name,
+            section: decode.section
           };
         } catch (error) {
           return {
             documentation: ['Unknown error'],
             name: 'UnknownError',
+            section: 'UnknownSection'
           };
         }
       }
@@ -122,6 +133,7 @@ export class Base {
       return {
         documentation: ['Unknown error'],
         name: 'UnknownError',
+        section: 'UnknownSection'
       };
     }
     return null;
@@ -177,6 +189,9 @@ export class Base {
                   if (executionBlockNr.gt(executionBlockStopNr)) {
                     // Transaction not executed within expected blocks
                     unsubscribeNewHeads();
+
+                    // TODO maybe add or increase stop number to avoid confusion when trying to send to a spammed chain
+                    // maybe add time for debugging?
                     reject(
                       `Tx([${extrinsics.hash.toString()}]) was not executed in blocks: ${executionBlockStartNr.toString()}..${executionBlockStopNr.toString()}`
                     );
@@ -194,14 +209,44 @@ export class Base {
                     const extinsics: GenericExtrinsic<AnyTuple>[] = (
                       await api.rpc.chain.getBlock(blockHeader.hash)
                     ).block.extrinsics;
-                    const apiAt = await api.at(blockHeader.hash);
-                    const events: any = await apiAt.query?.['system']?.[
-                      'events'
-                    ];
+                   
+                   // these events don't have extrinsic details
+                   // const apiAt = await api.at(blockHeader.hash);
+                    // const events: any = await apiAt.query?.['system']?.[
+                    //   'events'
+                    // ];
+ 
 
+                    const events = await result.events; // get events
+
+                    if (events) {
+                      const peaqEvents = events.map(({ event, phase }) => {
+                        const { data, method, section } = event;
+                        const eventData: PeaqEventData = { lookupName: method, data: data };
+                        
+                        return {
+                          event: event,
+                          phase: phase,
+                          section: section,
+                          method: method,
+                          eventData: [eventData],
+                        };
+                      });
+                    
+                      const extrinsicFailedEvents = peaqEvents.filter(peaqEvent => peaqEvent.method === "ExtrinsicFailed");
+                      if (extrinsicFailedEvents.length > 0) {
+                        const eventData = extrinsicFailedEvents[0].eventData[0];
+                        const errorResp = await this._transactionError(extrinsicFailedEvents[0].method, eventData);
+                        reject(
+                          new Error(
+                            `${errorResp?.name} for ${errorResp?.section}.`
+                          )
+                        );
+                      }                                   
+                    }
                     executionBlockNr.iaddn(1);
 
-                    const index = extinsics.findIndex((extrinsic) => {
+                   const index = extinsics.findIndex((extrinsic) => {
                       return (
                         extrinsic.hash.toString() === extrinsics.hash.toString()
                       );

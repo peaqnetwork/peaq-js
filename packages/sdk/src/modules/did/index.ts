@@ -7,25 +7,19 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
-import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
+import type { Address, ReadDidResponse, SDKMetadata, SignTransction, DidDocument } from '../../types';
 import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
+// anything else to be set with custom document fields?
+
+// maybe create using DidDocument instead??
 export interface CustomDocumentFields {
-  services: DocumentService[];
+  verifications?: peaqDidProto.VerificationMethod[],
+  signatures?: peaqDidProto.Signature[],
+  services?: peaqDidProto.Service[];
 }
 
-type DocumentService = {
-  id: string;
-  type: string;
-} & (
-  | {
-      serviceEndpoint: string;
-    }
-  | {
-      data: string;
-    }
-);
 
 interface CreateDidOptions {
   name: string;
@@ -34,9 +28,17 @@ interface CreateDidOptions {
   customDocumentFields?: CustomDocumentFields;
 }
 
-interface CreateDidResult {
-  hash: CodecHash;
-  unsubscribe: () => void;
+interface UpdateDidOptions {
+  name: string;
+  address?: Address;
+  seed?: string;
+  customDocumentFields: CustomDocumentFields;
+}
+
+interface RemoveDidOptions {
+  name: string;
+  address?: Address;
+  seed?: string;
 }
 
 interface ReadDidOptions {
@@ -48,6 +50,23 @@ interface DidDocumentOptions {
   didAccountAddress: Address;
   didControllerAddress: Address;
   customDocumentFields?: CustomDocumentFields;
+}
+
+interface CreateDidResult {
+  hash: CodecHash;
+  unsubscribe: () => void;
+}
+
+interface RemoveDidResult {
+  test?: string,
+  hash: CodecHash;
+  unsubscribe: () => void;
+}
+
+interface UpdateDidResult {
+  test?: string,
+  hash: CodecHash;
+  unsubscribe: () => void;
 }
 
 export class Did extends Base {
@@ -92,19 +111,19 @@ export class Did extends Base {
       );
 
       const nonce = await this._getNonce(keyPair.address);
-      await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
+      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
       // await attributeExtrinsic.signAsync(keyPair, { nonce });
       const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback &&
           statusCallback(result as unknown as ISubmittableResult);
       });
-
+      // is it necessary to add more verbose logging in return object?
       return {
         hash: attributeExtrinsic.hash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
-      throw new Error(`Error creating DID: ${error}`);
+      throw new Error(`Create DID ${error}`); // slight error prose improvement -> TODO create custom errors
     }
   }
 
@@ -114,23 +133,22 @@ export class Did extends Base {
    * @returns A promise that resolves with the DID attribute.
    */
   public async read(options: ReadDidOptions): Promise<ReadDidResponse | null> {
-    const api = this._getApi();
-
-    const { name, address } = options;
-    const accountAddress = address || this._metadata?.pair?.address;
-
-    if (!name) throw new Error('Name is required');
-    if (!accountAddress) throw new Error('Address is required');
-
-    const { hashed_key } = createStorageKeys([
-      {
-        value: accountAddress,
-        type: CreateStorageKeysEnum.ADDRESS,
-      },
-      { value: name, type: CreateStorageKeysEnum.STANDARD },
-    ]);
-
     try {
+      const api = this._getApi();
+
+      const { name, address } = options;
+      const accountAddress = address || this._metadata?.pair?.address;
+
+      if (!name) throw new Error('Name is required');
+      if (!accountAddress) throw new Error('Address is required');
+
+      const { hashed_key } = createStorageKeys([
+        {
+          value: accountAddress,
+          type: CreateStorageKeysEnum.ADDRESS,
+        },
+        { value: name, type: CreateStorageKeysEnum.STANDARD },
+      ]);
       const did = (await api.query?.['peaqDid']?.['attributeStore'](
         hashed_key
       )) as unknown as Attribute;
@@ -148,43 +166,154 @@ export class Did extends Base {
     }
   }
 
+
+  // TODO create requirements so that the DID Document is updated correctly based on the peaq-did-proto
+  // - read to make sure there is one?
+  // - how to confirm the previous verifications if they add a new one
+  public async update(options: UpdateDidOptions,
+    statusCallback?: (result: ISubmittableResult) => void | Promise<void>
+  ): Promise<UpdateDidResult | null> {
+    try {
+      const api = this._getApi();
+
+      const { name, address = '', seed = '', customDocumentFields } = options;
+
+      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const accountAddress = address || keyPair.address;
+
+      if (!name) throw new Error('Name is required');
+      if (!accountAddress) throw new Error('Address is required');
+      if (!customDocumentFields) throw new Error('DID Document fields must be configured before manually changing.');
+
+
+      // do I need to create a new one or update the old one??
+      const didDocument = this._createDidDocument({
+        didAccountAddress: accountAddress,
+        didControllerAddress: keyPair.address,
+        customDocumentFields,
+      });
+
+      const attributeExtrinsic = api.tx?.['peaqDid']?.['updateAttribute'](
+        accountAddress,
+        name,
+        didDocument,
+        null
+      );
+
+      const nonce = await this._getNonce(keyPair.address);
+      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
+      const unsubscribe = await attributeExtrinsic.send((result) => {
+        statusCallback &&
+          statusCallback(result as unknown as ISubmittableResult);
+      });
+
+      return {
+        test: `Successfully updated the DID Document of name ${name} at address ${accountAddress}`,
+        hash: attributeExtrinsic.hash as unknown as CodecHash,
+        unsubscribe,
+      };
+    } catch (error) {
+      throw new Error(`Update DID ${error}`);
+    }
+  }
+
+  public async remove(options: RemoveDidOptions,
+    statusCallback?: (result: ISubmittableResult) => void | Promise<void>
+  ): Promise<RemoveDidResult | null> {
+    try {
+      const api = this._getApi();
+
+      const { name, address = '', seed = '' } = options;
+
+      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const accountAddress = address || this._metadata?.pair?.address;
+
+      if (!name) throw new Error('Name is required');
+      if (!accountAddress) throw new Error('Address is required');
+
+      const attributeExtrinsic = api.tx?.['peaqDid']?.['removeAttribute'](
+        accountAddress,
+        name
+      );
+
+      const nonce = await this._getNonce(keyPair.address);
+      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
+      // await attributeExtrinsic.signAsync(keyPair, { nonce });
+      const unsubscribe = await attributeExtrinsic.send((result) => {
+        statusCallback &&
+          statusCallback(result as unknown as ISubmittableResult);
+      });
+      
+      return {
+        test: `Successfully removed the DID of name ${name} from address ${accountAddress}`,
+        hash: attributeExtrinsic.hash,
+        unsubscribe,
+      };
+    } catch (error) {
+      throw new Error(`Remove DID ${error}`);
+    }
+  }
+
   private _getDidId(address: Address): string {
     return `did:peaq:${address}`;
   }
 
-  private _createVerificationMethod(address: Address) {
+  private _createVerificationMethod(address: Address, type: number) {
     const id = uuidv4();
     const verificationMethod = new peaqDidProto.VerificationMethod();
 
+    // does this id change if it is Ed25519 vs Sr25519?
     verificationMethod.setId(id);
-    verificationMethod.setType(
-      peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
-    );
+
+    if (type !== peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020 &&
+      type !== peaqDidProto.VerificationType.SR25519VERIFICATIONKEY2020) {
+      throw new Error('Invalid type: Type must be either 0: ED25519VERIFICATIONKEY2020 or 1: SR25519VERIFICATIONKEY2020');
+    }
+
+    verificationMethod.setType(type);
     verificationMethod.setController(this._getDidId(address));
     verificationMethod.setPublickeymultibase(`z${address}`);
 
     return { verificationMethod, verificationId: id };
   }
 
-  private _createService(service: DocumentService) {
-    if (!service.id) throw new Error('Service ID is required');
-    if (!service.type) throw new Error('Service type is required');
-    if (!('serviceEndpoint' in service) && !('data' in service))
+
+  private _createSignature(signature: peaqDidProto.Signature) {
+    if (!Object.values(peaqDidProto.VerificationType).includes(signature.getType())) throw new Error('Signature Type is required');
+    if (!signature.getIssuer()) throw new Error('Signature Issuer is required');
+    if (!signature.getHash()) throw new Error('Signature Hash is required');
+
+    const signatureMethod = new peaqDidProto.Signature();
+
+    signatureMethod.setType(signature.getType());
+    signatureMethod.setIssuer(signature.getIssuer());
+    signatureMethod.setHash(signature.getHash());
+
+    return signatureMethod;
+  }
+
+  private _createService(service: peaqDidProto.Service) {
+    if (!service.getId()) throw new Error('Service ID is required');
+    if (!service.getType()) throw new Error('Service type is required');
+
+    // // get clarification on line below.
+
+    if (!(service.getServiceendpoint()) && !(service.getData()))
       throw new Error(
         'Either service endpoint or data is required for service'
       );
 
     const documentService = new peaqDidProto.Service();
 
-    documentService.setId(service.id);
-    documentService.setType(service.type);
-
-    if ('serviceEndpoint' in service) {
-      documentService.setServiceendpoint(service.serviceEndpoint);
+    documentService.setId(service.getId());
+    documentService.setType(service.getType());
+    if (service.getServiceendpoint()) {
+      documentService.setServiceendpoint(service.getServiceendpoint());
     }
 
-    if ('data' in service) {
-      documentService.setData(service.data);
+    if (service.getData()) {
+      console.log("testtewt");
+      documentService.setData(service.getData());
     }
 
     return documentService;
@@ -198,12 +327,23 @@ export class Did extends Base {
       this._getDidId(options.didControllerAddress.toString())
     );
 
-    const { verificationId, verificationMethod } =
-      this._createVerificationMethod(options.didAccountAddress.toString());
+    // do we want to preset a verification method? Or should we have user manually do it
+    if (options.customDocumentFields?.verifications) {
+      options.customDocumentFields.verifications.forEach((verification) => {
+        const { verificationId, verificationMethod } = this._createVerificationMethod(options.didAccountAddress.toString(), verification.getType());
 
-    document.addVerificationmethods(verificationMethod);
+        document.addVerificationmethods(verificationMethod);
+        document.addAuthentications(verificationId);
+      });
+    }
 
-    document.addAuthentications(verificationId);
+    // is there only ever 1 signature?
+    if (options.customDocumentFields?.signatures) {
+      options.customDocumentFields.signatures.forEach((signature) => {
+        const documentSignature = this._createSignature(signature);
+        document.setSignature(documentSignature);
+      });
+    }
 
     if (options.customDocumentFields?.services) {
       options.customDocumentFields.services.forEach((service) => {
@@ -215,4 +355,15 @@ export class Did extends Base {
     const bytes = document.serializeBinary();
     return u8aToHex(bytes);
   }
+
+  // in my update function I am calling _createDidDocument. Need to have conversations to see what is best.
+  private _updateDidDocument(options: UpdateDidOptions): `0x${string}` {
+    // add checks here
+
+    // const { verificationId, verificationMethod } =
+    // this._updateVerificationMethod(options.didAccountAddress.toString());
+
+    return u8aToHex();
+  }
+
 }

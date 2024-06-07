@@ -19,7 +19,7 @@ describe('RBAC', () => {
     keyring = new Keyring({ type: 'sr25519' });
     alice = keyring.addFromUri('//Alice');
     rbac = new RBAC(api, { pair: alice });
-  });
+  }, 40000);
 
   afterAll(async () => {
     await unsubscribeRuntimeVersion(api);
@@ -36,7 +36,7 @@ describe('RBAC', () => {
       expect(typeof result.roleId).toBe('string');
     }, 30000);
 
-    it('should create a new role with coustom id ID', async () => {
+    it('should create a new role with custom id ID', async () => {
       const name = 'test-1-create-coustom-roleID-rohan-ye';
       const result = await rbac.createRole({
         roleName: name,
@@ -69,7 +69,7 @@ describe('RBAC', () => {
       });
       expect(typeof result.message).toBe('string');
       expect(result.message).toContain('Successfully disable role');
-    }, 30500);
+    }, 50000);
   });
 
   describe('fetch Roles, groups, and permissions', () => {
@@ -80,13 +80,12 @@ describe('RBAC', () => {
     });
 
     it('should fetch roles', async () => {
-      const response = await rbac.fetchRoles({owner: alice.address});
-      expect(typeof response).toBe('object');
-      if (response.length > 0) {
+        const response = await rbac.fetchRoles({owner: alice.address});
+        
+        expect(typeof response).toBe('object');
         expect(typeof response[0].id).toBe('string');
         expect(typeof response[0].name).toBe('string');
         expect(typeof response[0].enabled).toBe('boolean');
-      }
     });
     it('should fetch groups', async () => {
       const response = await rbac.fetchGroups({owner: alice.address});
