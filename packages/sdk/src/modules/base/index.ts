@@ -1,4 +1,4 @@
-import { BN, isHex, hexToU8a, u8aToHex, hexToString, u8aToString } from '@polkadot/util';
+import { BN, isHex, hexToU8a } from '@polkadot/util';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { ApiPromise, Keyring } from '@polkadot/api';
 import { ISubmittableResult } from '@polkadot/types/types';
@@ -190,8 +190,6 @@ export class Base {
                     // Transaction not executed within expected blocks
                     unsubscribeNewHeads();
 
-                    // TODO maybe add or increase stop number to avoid confusion when trying to send to a spammed chain
-                    // maybe add time for debugging?
                     reject(
                       `Tx([${extrinsics.hash.toString()}]) was not executed in blocks: ${executionBlockStartNr.toString()}..${executionBlockStopNr.toString()}`
                     );

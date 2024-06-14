@@ -15,11 +15,29 @@ import { Base } from '../base';
 
 // maybe create using DidDocument instead??
 export interface CustomDocumentFields {
-  verifications?: peaqDidProto.VerificationMethod[],
-  signatures?: peaqDidProto.Signature[],
-  services?: peaqDidProto.Service[];
+  verifications?: Verification[],
+  signatures?: Signature[],
+  services?: Service[];
 }
 
+type Verification = {
+  type: peaqDidProto.VerificationType;
+}
+
+type Signature = {
+  type: peaqDidProto.VerificationType;
+  issuer: string;
+  hash: string;
+}
+
+// Here we are only allowing these values to be built based on the Service in the proto doc
+// - How can we add more functionality for users to manually set their own service if it does not include these fields?
+type Service = {
+  id: string;
+  type: string;
+  serviceEndpoint?: string;
+  data?: string;
+}
 
 interface CreateDidOptions {
   name: string;
@@ -91,6 +109,7 @@ export class Did extends Base {
 
       const { name, address = '', seed = '', customDocumentFields } = options;
 
+      // should there be logic to determine the proper format for a seed phrase?
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
@@ -258,64 +277,62 @@ export class Did extends Base {
     return `did:peaq:${address}`;
   }
 
-  private _createVerificationMethod(address: Address, type: number) {
+  private _createVerificationMethod(verification: Verification, address: Address) {
     const id = uuidv4();
     const verificationMethod = new peaqDidProto.VerificationMethod();
 
     // does this id change if it is Ed25519 vs Sr25519?
     verificationMethod.setId(id);
 
-    if (type !== peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020 &&
-      type !== peaqDidProto.VerificationType.SR25519VERIFICATIONKEY2020) {
+    if (verification.type !== peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020 &&
+      verification.type !== peaqDidProto.VerificationType.SR25519VERIFICATIONKEY2020) {
       throw new Error('Invalid type: Type must be either 0: ED25519VERIFICATIONKEY2020 or 1: SR25519VERIFICATIONKEY2020');
     }
 
-    verificationMethod.setType(type);
+    verificationMethod.setType(verification.type);
     verificationMethod.setController(this._getDidId(address));
     verificationMethod.setPublickeymultibase(`z${address}`);
 
     return { verificationMethod, verificationId: id };
   }
 
-
-  private _createSignature(signature: peaqDidProto.Signature) {
-    if (!Object.values(peaqDidProto.VerificationType).includes(signature.getType())) throw new Error('Signature Type is required');
-    if (!signature.getIssuer()) throw new Error('Signature Issuer is required');
-    if (!signature.getHash()) throw new Error('Signature Hash is required');
+// added logic to add signature
+  private _createSignature(signature: Signature) {
+    if (!Object.values(peaqDidProto.VerificationType).includes(signature.type)) throw new Error('Signature Type is required');
+    if (!signature.issuer) throw new Error('Signature Issuer is required');
+    if (!signature.hash) throw new Error('Signature Hash is required');
 
     const signatureMethod = new peaqDidProto.Signature();
 
-    signatureMethod.setType(signature.getType());
-    signatureMethod.setIssuer(signature.getIssuer());
-    signatureMethod.setHash(signature.getHash());
+    signatureMethod.setType(signature.type);
+    signatureMethod.setIssuer(signature.issuer);
+    signatureMethod.setHash(signature.hash);
 
     return signatureMethod;
   }
 
-  private _createService(service: peaqDidProto.Service) {
-    if (!service.getId()) throw new Error('Service ID is required');
-    if (!service.getType()) throw new Error('Service type is required');
+  private _createService(service: Service) {
+    if (!service.id) throw new Error('Service ID is required');
+    if (!service.type) throw new Error('Service type is required');
 
     // // get clarification on line below.
 
-    if (!(service.getServiceendpoint()) && !(service.getData()))
+    if (!(service.serviceEndpoint) && !(service.data))
       throw new Error(
         'Either service endpoint or data is required for service'
       );
 
     const documentService = new peaqDidProto.Service();
 
-    documentService.setId(service.getId());
-    documentService.setType(service.getType());
-    if (service.getServiceendpoint()) {
-      documentService.setServiceendpoint(service.getServiceendpoint());
+    documentService.setId(service.id);
+    documentService.setType(service.type);
+    if (service.serviceEndpoint) {
+      documentService.setServiceendpoint(service.serviceEndpoint);
     }
 
-    if (service.getData()) {
-      console.log("testtewt");
-      documentService.setData(service.getData());
+    if (service.data) {
+      documentService.setData(service.data);
     }
-
     return documentService;
   }
 
@@ -327,11 +344,10 @@ export class Did extends Base {
       this._getDidId(options.didControllerAddress.toString())
     );
 
-    // do we want to preset a verification method? Or should we have user manually do it
+    // do we want to preset a verification method? Or should we have user manually do it? Before it was set automatically but that doesn't make sense to me
     if (options.customDocumentFields?.verifications) {
       options.customDocumentFields.verifications.forEach((verification) => {
-        const { verificationId, verificationMethod } = this._createVerificationMethod(options.didAccountAddress.toString(), verification.getType());
-
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, options.didAccountAddress.toString());
         document.addVerificationmethods(verificationMethod);
         document.addAuthentications(verificationId);
       });

@@ -29,6 +29,27 @@ interface CreateNewRole {
   seed?: string;
 }
 
+interface DeleteRole {
+  roleName: string,
+  roleId: string;
+  address?: Address;
+  seed?: string;
+}
+
+interface DeleteGroup {
+  groupName: string,
+  groupId: string;
+  address?: Address;
+  seed?: string;
+}
+
+interface DeletePermission {
+  permissionName: string,
+  permissionId: string;
+  address?: Address;
+  seed?: string;
+}
+
 interface CreateNewGroup {
   groupName: string;
   groupId?: string;
@@ -224,7 +245,7 @@ export class RBAC extends Base {
         roleId: roleId || generatedRoleId,
       };
     } catch (error) {
-      throw new Error(`Error occurred while creating roles: ${error}`);
+      throw new Error(`Create Role ${error}`);
     }
   }
 
@@ -260,7 +281,7 @@ export class RBAC extends Base {
         groupId: groupId || generatedGroupId,
       };
     } catch (error) {
-      throw new Error(`Error occurred while creating group: ${error}`);
+      throw new Error(`Create Group ${error}`);
     }
   }
 
@@ -303,9 +324,120 @@ export class RBAC extends Base {
         permissionId: permissionId || generatedPermissionId,
       };
     } catch (error) {
-      throw new Error(`Error occurred while creating permission: ${error}`);
+      throw new Error(`Create Permission ${error}`);
     }
   }
+
+  /**
+ * Deletes a previous role.
+ * @param options - The options for deleting the Role.
+ * @returns A promise that resolves when the role is created.
+ */
+
+  public async deleteRole(options: DeleteRole): Promise<{log: string;}> {
+    try { 
+      const {roleName, roleId, address = '' , seed = ''} = options;
+
+      if (roleId && roleId.length !== 32)
+        throw new Error('Role Id length should be 32 char only');
+    
+      const api = this._getApi();
+      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      //const accountAddress = address || this._metadata?.pair?.address;
+
+      // do we need to implement a check to ensure that the person with the required authorization can
+      // delete? 
+      const addRoleExtrinsics = api.tx?.['peaqRbac']?.['deleteRole'](
+        roleId,
+      );
+      const nonce = await this._getNonce(keyPair.address);
+      await this._newSignTx({
+        nonce,
+        address: keyPair,
+        extrinsics: addRoleExtrinsics,
+      });
+
+      return {
+        log: `Role Id of ${roleId} removed with name ${roleName}`,
+      };
+    } catch (error) {
+      throw new Error(`Create Role ${error}`);
+    }
+  }
+
+  /**
+ * Deletes a previous group.
+ * @param options - The options for deleting the Group.
+ * @returns A promise that resolves when the role is created.
+ */
+
+  public async deleteGroup(options: DeleteGroup): Promise<{log: string;}> {
+    try { 
+      const {groupName, groupId, address = '' , seed = ''} = options;
+
+      if (groupId && groupId.length !== 32)
+        throw new Error('Role Id length should be 32 char only');
+    
+      const api = this._getApi();
+      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      //const accountAddress = address || this._metadata?.pair?.address;
+
+      // do we need to implement a check to ensure that the person with the required authorization can
+      // delete? 
+      const addRoleExtrinsics = api.tx?.['peaqRbac']?.['deleteGroup'](
+        groupId,
+      );
+      const nonce = await this._getNonce(keyPair.address);
+      await this._newSignTx({
+        nonce,
+        address: keyPair,
+        extrinsics: addRoleExtrinsics,
+      });
+
+      return {
+        log: `Group Id of ${groupId} removed with name ${groupName}`,
+      };
+    } catch (error) {
+      throw new Error(`Create Role ${error}`);
+    }
+  }
+
+    /**
+ * Deletes a previous permission.
+ * @param options - The options for deleting the permission.
+ * @returns A promise that resolves when the role is created.
+ */
+
+    public async deletePermission(options: DeletePermission): Promise<{log: string;}> {
+      try { 
+        const {permissionName, permissionId, address = '' , seed = ''} = options;
+  
+        if (permissionId && permissionId.length !== 32)
+          throw new Error('Role Id length should be 32 char only');
+      
+        const api = this._getApi();
+        const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+        //const accountAddress = address || this._metadata?.pair?.address;
+  
+        // do we need to implement a check to ensure that the person with the required authorization can
+        // delete? 
+        const addRoleExtrinsics = api.tx?.['peaqRbac']?.['deletePermission'](
+          permissionId,
+        );
+        const nonce = await this._getNonce(keyPair.address);
+        await this._newSignTx({
+          nonce,
+          address: keyPair,
+          extrinsics: addRoleExtrinsics,
+        });
+  
+        return {
+          log: `Permission Id of ${permissionId} removed with name ${permissionName}`,
+        };
+      } catch (error) {
+        throw new Error(`Create Role ${error}`);
+      }
+    }
 
   /**
    * Assign permission to role.
@@ -368,7 +500,7 @@ export class RBAC extends Base {
         message: `Successfully assign role ${roleId} to group ${groupId}`,
       };
     } catch (error) {
-      throw new Error(`Error occurred while assign role to group: ${error}`);
+      throw new Error(`Assign role to group ${error}`);
     }
   }
 
@@ -400,7 +532,7 @@ export class RBAC extends Base {
         message: `Successfully assign role ${roleId} to user ${userId}`,
       };
     } catch (error) {
-      throw new Error(`Error occurred while assign role to user: ${error}`);
+      throw new Error(`Assign role to user ${error}`);
     }
   }
 
@@ -432,7 +564,7 @@ export class RBAC extends Base {
         message: `Successfully assign user ${userId} to group ${groupId}`,
       };
     } catch (error) {
-      throw new Error(`Error occurred while assign user to group: ${error}`);
+      throw new Error(`Assign group to user ${error}`);
     }
   }
 
@@ -556,14 +688,11 @@ export class RBAC extends Base {
       const groups = (await api.query?.['peaqRbac']?.['keysLookUpStore'](
         hashed_key
       )) as unknown as Entity;
-      if (!groups) {
-        throw new Error(`Group not exits with this owner address = ${owner}`);
-      }
-      const { id, name, enabled } = JSON.parse(
-        JSON.stringify(groups.toHuman())
-      );
+      const { id, name, enabled } = JSON.parse(JSON.stringify(groups.toHuman()));
       if (!name) {
-        throw new Error(`Group not exits with this owner address = ${owner}`);
+        throw new Error(
+          `Group does not exist with the owner address = ${owner}`
+        );
       }
       return {
         id,
@@ -571,7 +700,7 @@ export class RBAC extends Base {
         enabled,
       };
     } catch (error) {
-      throw new Error(`Error occurred while fetching group: ${error}`);
+      throw new Error(`Fetch Group ${error}`);
     }
   }
 
@@ -732,13 +861,18 @@ export class RBAC extends Base {
       const { id, name, enabled } = JSON.parse(
         JSON.stringify(permission.toHuman())
       );
+      if (!name) {
+        throw new Error(
+          `Permission does not exist with the owner address = ${owner}`
+        );
+      }
       return {
         id,
         name,
         enabled,
       };
     } catch (error) {
-      throw new Error(`Error occurred while fetching group roles: ${error}`);
+      throw new Error(`Fetch Permission ${error}`);
     }
   }
 
@@ -799,7 +933,7 @@ export class RBAC extends Base {
       const { id, name, enabled } = JSON.parse(JSON.stringify(role.toHuman()));
       if (!name) {
         throw new Error(
-          `Permission not exits with this owner address = ${owner}`
+          `Role does not exist with the owner address = ${owner}`
         );
       }
       return {
@@ -808,7 +942,7 @@ export class RBAC extends Base {
         enabled,
       };
     } catch (error) {
-      throw new Error(`Error occurred while fetching role: ${error}`);
+      throw new Error(`Fetch Role ${error}`);
     }
   }
 
@@ -1106,7 +1240,7 @@ export class RBAC extends Base {
         extrinsics: unassignPermissionToRoleExtrinsics,
       });
       return {
-        message: `Successfully unassign role: ${roleId} from permission: ${permissionId}`,
+        message: `Successfully unassign permission: ${permissionId} from role: ${roleId}`,
       };
     } catch (error) {
       throw new Error(
@@ -1131,7 +1265,7 @@ export class RBAC extends Base {
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignRoleToGroupExtrinsics = api.tx?.['peaqRbac']?.[
-        'unassignPermissionToRole'
+        'unassignRoleToGroup'
       ](stringToU8a(roleId), stringToU8a(groupId));
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({

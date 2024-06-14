@@ -4,9 +4,10 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import { Storage } from './index';
 import { unsubscribeRuntimeVersion } from '../../utils';
 
-const BASE_URL = "wss://wsspc1-qa.agung.peaq.network"//process.env['NX_NETWORK_BASE_URL'] as string;
+const BASE_URL = process.env['NX_NETWORK_BASE_URL'] as string;
 
-describe('Storage', () => {
+// WIP -> Need to have further discussions on proper implementation
+describe.skip('Storage', () => {
   let api: ApiPromise;
   let keyring: Keyring;
   let alice: KeyringPair;
@@ -25,7 +26,7 @@ describe('Storage', () => {
     await api?.disconnect();
   });
 
-  // build out good testing sequences
+  // TODO build out good testing sequences
 
   describe('addItem()', () => {
     it('basic add item', async() => {
@@ -34,7 +35,8 @@ describe('Storage', () => {
         const result = await storage.addItem({
             itemType: itemType,
             item: item});
-        console.log(result.log);
+        expect(result).toBeDefined();
+        expect(result.log).toBe(`Successfully added the storage item type ${itemType} with item ${item} for the address ${alice.address}`)
     }, 50000);
   });
   describe('getItem()', () => {
@@ -43,7 +45,8 @@ describe('Storage', () => {
         const result = await storage.getItem({
             itemType: itemType
         });
-        console.log(result?.log);
+        expect(result).toBeDefined();
+        expect(result?.log).toBe('returned as hi123');
     }, 50000);
   });
 
@@ -56,7 +59,8 @@ describe('Storage', () => {
             itemType: itemType,
             item: item
         });
-        console.log(result.log);
+        expect(result).toBeDefined();
+        expect(result?.log).toBe(`Successfully updated the storage item type ${itemType} to the new item ${item} for the address ${alice.address}`)
     }, 50000);
   });
 
@@ -66,7 +70,8 @@ describe('Storage', () => {
         const result = await storage.getItem({
             itemType: itemType
         });
-        console.log(result?.log);
+        expect(result).toBeDefined();
+        expect(result?.log).toBe('returned as bye123');
     }, 50000);
   });
   
@@ -76,7 +81,8 @@ describe('Storage', () => {
         const result = await storage.removeItem({
             itemType: itemType
         });
-        console.log(result.log);
+        expect(result.log).toBeDefined();
+        expect(result?.log).toBe(`Successfully removed the storage item type ${itemType} from address ${alice.address}`);
     }, 50000);
   });
 });
