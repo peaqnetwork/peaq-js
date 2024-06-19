@@ -111,6 +111,7 @@ export interface PeaqEvent{
   section: string;
   method: string;
   eventData: PeaqEventData[];
+  blockHash?: string;
   error?: {
     documentation: string[];
     name: string

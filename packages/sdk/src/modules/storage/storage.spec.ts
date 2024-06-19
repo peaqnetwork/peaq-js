@@ -7,6 +7,7 @@ import { unsubscribeRuntimeVersion } from '../../utils';
 const BASE_URL = process.env['NX_NETWORK_BASE_URL'] as string;
 
 // WIP -> Need to have further discussions on proper implementation
+// - create test to make sure remove storage function only works with the address that created the object
 describe.skip('Storage', () => {
   let api: ApiPromise;
   let keyring: Keyring;

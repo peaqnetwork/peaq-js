@@ -181,6 +181,9 @@ export class Base {
               const executionBlockStopNr = inclusionBlockNr.addn(10);
               let executionBlockNr = executionBlockStartNr;
 
+              // set to new var to be able to access included block hash
+              const _inclusionBlockHash = inclusionBlockHash;
+
               // Subscribe to new blocks
               const unsubscribeNewHeads = await api.rpc.chain.subscribeNewHeads(
                 async (lastHeader) => {
@@ -213,35 +216,7 @@ export class Base {
                     // const events: any = await apiAt.query?.['system']?.[
                     //   'events'
                     // ];
- 
 
-                    const events = await result.events; // get events
-
-                    if (events) {
-                      const peaqEvents = events.map(({ event, phase }) => {
-                        const { data, method, section } = event;
-                        const eventData: PeaqEventData = { lookupName: method, data: data };
-                        
-                        return {
-                          event: event,
-                          phase: phase,
-                          section: section,
-                          method: method,
-                          eventData: [eventData],
-                        };
-                      });
-                    
-                      const extrinsicFailedEvents = peaqEvents.filter(peaqEvent => peaqEvent.method === "ExtrinsicFailed");
-                      if (extrinsicFailedEvents.length > 0) {
-                        const eventData = extrinsicFailedEvents[0].eventData[0];
-                        const errorResp = await this._transactionError(extrinsicFailedEvents[0].method, eventData);
-                        reject(
-                          new Error(
-                            `${errorResp?.name} for ${errorResp?.section}.`
-                          )
-                        );
-                      }                                   
-                    }
                     executionBlockNr.iaddn(1);
 
                    const index = extinsics.findIndex((extrinsic) => {
@@ -256,30 +231,32 @@ export class Base {
                       unsubscribeNewHeads();
                     }
 
-                    const eventsTriggeredByTx: any = []
-                    .map((eventRecord : any) => {
-                      const { event, phase } = eventRecord;
-                      const types = event.typeDef;
-                      const eventData: PeaqEventData[] = event.data.map((d: any, i: any) => {
-                        return {
-                          lookupName: types[i].lookupName!,
-                          data: d
-                        };
-                      });
+                    // moved events down
+                    const events = await result.events; // get events
+                    const peaqEvents = events.map(({ event, phase }) => {
+                      const { data, method, section } = event;
+                      const eventData: PeaqEventData = { lookupName: method, data: data };
                       return {
-                        event,
-                        phase,
-                        section: event.section,
-                        method: event.method,
-                        metaDocumentation: event.meta.docs.toString(),
-                        eventData,
-                        error: {
-                          documentation: [],
-                          name: ""
-                        }
+                        event: event,
+                        phase: phase,
+                        section: section,
+                        method: method,
+                        eventData: [eventData],
+                        blockHash: _inclusionBlockHash
                       } as PeaqEvent;
                     });
-                    resolve(eventsTriggeredByTx);
+                    // check for any failed extrinsics
+                    const extrinsicFailedEvents = peaqEvents.filter(peaqEvent => peaqEvent.method === "ExtrinsicFailed");
+                    if (extrinsicFailedEvents.length > 0) {
+                      const eventData = extrinsicFailedEvents[0].eventData[0];
+                      const errorResp = await this._transactionError(extrinsicFailedEvents[0].method, eventData);
+                      reject(
+                        new Error(
+                          `${errorResp?.name} for ${errorResp?.section}.`
+                        )
+                      );
+                    }
+                    resolve(peaqEvents); // properly returning peaqEvent data
                     unsub();
                   }
                 }

@@ -130,15 +130,18 @@ export class Did extends Base {
       );
 
       const nonce = await this._getNonce(keyPair.address);
-      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
-      // await attributeExtrinsic.signAsync(keyPair, { nonce });
+
+      // _newSignTx now returns eventData where you can extract blockHash from
+      const eventData = await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
+      
       const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback &&
           statusCallback(result as unknown as ISubmittableResult);
       });
-      // is it necessary to add more verbose logging in return object?
       return {
-        hash: attributeExtrinsic.hash as unknown as CodecHash,
+        // get block hash instead of attribute extrinsic hash
+        // TODO determine where else to update to use this new code
+        hash: eventData[0].blockHash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
@@ -204,6 +207,10 @@ export class Did extends Base {
       if (!accountAddress) throw new Error('Address is required');
       if (!customDocumentFields) throw new Error('DID Document fields must be configured before manually changing.');
 
+      
+      // TODO: read did to get back did document to add new data to
+      // - discuss how to properly update and implement
+      const did_document = await this.read({name, address});
 
       // do I need to create a new one or update the old one??
       const didDocument = this._createDidDocument({

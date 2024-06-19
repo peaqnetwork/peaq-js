@@ -196,7 +196,7 @@ export class Storage extends Base {
         
               // is toHuman acceptable here? What if a simple string is not passed?
               return {
-                log: `returned as ${item.toHuman()}`,
+                log: `${item.toHuman()}`,
               };
             }
        catch (error) {
