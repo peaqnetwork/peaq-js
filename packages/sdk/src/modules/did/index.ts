@@ -34,15 +34,41 @@ interface CreateDidOptions {
   customDocumentFields?: CustomDocumentFields;
 }
 
+interface ReadDidOptions {
+  name: string;
+  address?: Address;
+}
+
+interface UpdateDidOptions {
+  name: string;
+  address?: Address;
+  seed?: string;
+  customDocumentFields: CustomDocumentFields;
+}
+
+interface RemoveDidOptions {
+  name: string;
+  address?: Address;
+  seed?: string;
+}
+
 interface CreateDidResult {
   hash: CodecHash;
   unsubscribe: () => void;
 }
 
-interface ReadDidOptions {
-  name: string;
-  address?: Address;
+interface RemoveDidResult {
+  log?: string,
+  hash: CodecHash;
+  unsubscribe: () => void;
 }
+
+interface UpdateDidResult {
+  log?: string,
+  hash: CodecHash;
+  unsubscribe: () => void;
+}
+
 
 interface DidDocumentOptions {
   didAccountAddress: Address;
@@ -114,23 +140,23 @@ export class Did extends Base {
    * @returns A promise that resolves with the DID attribute.
    */
   public async read(options: ReadDidOptions): Promise<ReadDidResponse | null> {
-    const api = this._getApi();
-
-    const { name, address } = options;
-    const accountAddress = address || this._metadata?.pair?.address;
-
-    if (!name) throw new Error('Name is required');
-    if (!accountAddress) throw new Error('Address is required');
-
-    const { hashed_key } = createStorageKeys([
-      {
-        value: accountAddress,
-        type: CreateStorageKeysEnum.ADDRESS,
-      },
-      { value: name, type: CreateStorageKeysEnum.STANDARD },
-    ]);
-
     try {
+      const api = this._getApi();
+
+      const { name, address } = options;
+      const accountAddress = address || this._metadata?.pair?.address;
+
+      if (!name) throw new Error('Name is required');
+      if (!accountAddress) throw new Error('Address is required');
+
+      const { hashed_key } = createStorageKeys([
+        {
+          value: accountAddress,
+          type: CreateStorageKeysEnum.ADDRESS,
+        },
+        { value: name, type: CreateStorageKeysEnum.STANDARD },
+      ]);
+
       const did = (await api.query?.['peaqDid']?.['attributeStore'](
         hashed_key
       )) as unknown as Attribute;
@@ -145,6 +171,98 @@ export class Did extends Base {
       } as ReadDidResponse;
     } catch (error) {
       throw new Error(`Error reading DID attribute: ${error}`);
+    }
+  }
+
+  // TODO create requirements so that the DID Document is updated correctly based on the peaq-did-proto
+  // - read to make sure there is one?
+  // - how to confirm the previous verifications if they add a new one
+  public async update(options: UpdateDidOptions,
+    statusCallback?: (result: ISubmittableResult) => void | Promise<void>
+  ): Promise<UpdateDidResult | null> {
+    try {
+      const api = this._getApi();
+
+      const { name, address = '', seed = '', customDocumentFields } = options;
+
+      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const accountAddress = address || keyPair.address;
+
+      if (!name) throw new Error('Name is required');
+      if (!accountAddress) throw new Error('Address is required');
+      if (!customDocumentFields) throw new Error('DID Document fields must be configured before manually changing.');
+
+      
+      // TODO: read did to get back did document to add new data to
+      // - discuss how to properly update and implement
+      const did_document = await this.read({name, address});
+
+      // do I need to create a new one or update the old one??
+      // can call the _updateDidDocument() function below -> not started, need to decide best practices
+      const didDocument = this._createDidDocument({
+        didAccountAddress: accountAddress,
+        didControllerAddress: keyPair.address,
+        customDocumentFields,
+      });
+
+      const attributeExtrinsic = api.tx?.['peaqDid']?.['updateAttribute'](
+        accountAddress,
+        name,
+        didDocument,
+        null
+      );
+
+      const nonce = await this._getNonce(keyPair.address);
+      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
+      const unsubscribe = await attributeExtrinsic.send((result) => {
+        statusCallback &&
+          statusCallback(result as unknown as ISubmittableResult);
+      });
+
+      return {
+        log: `Successfully updated the DID Document of name ${name} at address ${accountAddress}`,
+        hash: attributeExtrinsic.hash as unknown as CodecHash,
+        unsubscribe,
+      };
+    } catch (error) {
+      throw new Error(`Update DID ${error}`);
+    }
+  }
+
+  public async remove(options: RemoveDidOptions,
+    statusCallback?: (result: ISubmittableResult) => void | Promise<void>
+  ): Promise<RemoveDidResult | null> {
+    try {
+      const api = this._getApi();
+
+      const { name, address = '', seed = '' } = options;
+
+      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const accountAddress = address || this._metadata?.pair?.address;
+
+      if (!name) throw new Error('Name is required');
+      if (!accountAddress) throw new Error('Address is required');
+
+      const attributeExtrinsic = api.tx?.['peaqDid']?.['removeAttribute'](
+        accountAddress,
+        name
+      );
+
+      const nonce = await this._getNonce(keyPair.address);
+      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
+      // await attributeExtrinsic.signAsync(keyPair, { nonce });
+      const unsubscribe = await attributeExtrinsic.send((result) => {
+        statusCallback &&
+          statusCallback(result as unknown as ISubmittableResult);
+      });
+      
+      return {
+        log: `Successfully removed the DID of name ${name} from address ${accountAddress}`,
+        hash: attributeExtrinsic.hash,
+        unsubscribe,
+      };
+    } catch (error) {
+      throw new Error(`Remove DID ${error}`);
     }
   }
 
@@ -214,5 +332,15 @@ export class Did extends Base {
 
     const bytes = document.serializeBinary();
     return u8aToHex(bytes);
+  }
+
+  // in my update function I am calling _createDidDocument. Need to have conversations to see what is best.
+  private _updateDidDocument(options: UpdateDidOptions): `0x${string}` {
+    // add checks here
+
+    // const { verificationId, verificationMethod } =
+    // this._updateVerificationMethod(options.didAccountAddress.toString());
+
+    return u8aToHex();
   }
 }
