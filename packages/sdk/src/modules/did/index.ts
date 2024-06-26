@@ -12,20 +12,30 @@ import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
 export interface CustomDocumentFields {
-  services: DocumentService[];
+  verifications?: Verification[],
+  signatures?: Signature[],
+  services?: Service[];
 }
 
-type DocumentService = {
+type Verification = {
+  id?: string;
+  type: peaqDidProto.VerificationType;
+  controller?: string;
+  pubicKeyMultibase?: string;
+}
+
+type Signature = {
+  type: peaqDidProto.VerificationType;
+  issuer: string;
+  hash: string;
+}
+
+type Service = {
   id: string;
   type: string;
-} & (
-  | {
-      serviceEndpoint: string;
-    }
-  | {
-      data: string;
-    }
-);
+  serviceEndpoint?: string;
+  data?: string;
+}
 
 interface CreateDidOptions {
   name: string;
@@ -152,24 +162,44 @@ export class Did extends Base {
     return `did:peaq:${address}`;
   }
 
-  private _createVerificationMethod(address: Address) {
+  private _createVerificationMethod(verification: Verification, address: Address) {
     const id = uuidv4();
     const verificationMethod = new peaqDidProto.VerificationMethod();
 
+    // does this id change if it is Ed25519 vs Sr25519?
     verificationMethod.setId(id);
-    verificationMethod.setType(
-      peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
-    );
+
+    if (verification.type !== peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020 &&
+      verification.type !== peaqDidProto.VerificationType.SR25519VERIFICATIONKEY2020) {
+      throw new Error('Invalid type: Type must be either 0: ED25519VERIFICATIONKEY2020 or 1: SR25519VERIFICATIONKEY2020');
+    }
+
+    verificationMethod.setType(verification.type);
     verificationMethod.setController(this._getDidId(address));
     verificationMethod.setPublickeymultibase(`z${address}`);
 
     return { verificationMethod, verificationId: id };
   }
 
-  private _createService(service: DocumentService) {
+  // added logic to add signature
+  private _createSignature(signature: Signature) {
+    if (!Object.values(peaqDidProto.VerificationType).includes(signature.type)) throw new Error('Signature Type is required');
+    if (!signature.issuer) throw new Error('Signature Issuer is required');
+    if (!signature.hash) throw new Error('Signature Hash is required');
+
+    const signatureMethod = new peaqDidProto.Signature();
+
+    signatureMethod.setType(signature.type);
+    signatureMethod.setIssuer(signature.issuer);
+    signatureMethod.setHash(signature.hash);
+
+    return signatureMethod;
+  }
+
+  private _createService(service: Service) {
     if (!service.id) throw new Error('Service ID is required');
     if (!service.type) throw new Error('Service type is required');
-    if (!('serviceEndpoint' in service) && !('data' in service))
+    if (!(service.serviceEndpoint) && !(service.data))
       throw new Error(
         'Either service endpoint or data is required for service'
       );
@@ -178,15 +208,13 @@ export class Did extends Base {
 
     documentService.setId(service.id);
     documentService.setType(service.type);
-
-    if ('serviceEndpoint' in service) {
+    if (service.serviceEndpoint) {
       documentService.setServiceendpoint(service.serviceEndpoint);
     }
 
-    if ('data' in service) {
+    if (service.data) {
       documentService.setData(service.data);
     }
-
     return documentService;
   }
 
@@ -198,12 +226,21 @@ export class Did extends Base {
       this._getDidId(options.didControllerAddress.toString())
     );
 
-    const { verificationId, verificationMethod } =
-      this._createVerificationMethod(options.didAccountAddress.toString());
+    if (options.customDocumentFields?.verifications) {
+      options.customDocumentFields.verifications.forEach((verification) => {
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, options.didAccountAddress.toString());
+        document.addVerificationmethods(verificationMethod);
+        document.addAuthentications(verificationId);
+      });
+    }
 
-    document.addVerificationmethods(verificationMethod);
-
-    document.addAuthentications(verificationId);
+    // is there only ever 1 signature?
+    if (options.customDocumentFields?.signatures) {
+      options.customDocumentFields.signatures.forEach((signature) => {
+        const documentSignature = this._createSignature(signature);
+        document.setSignature(documentSignature);
+      });
+    }
 
     if (options.customDocumentFields?.services) {
       options.customDocumentFields.services.forEach((service) => {
