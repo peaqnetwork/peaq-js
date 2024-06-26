@@ -73,12 +73,6 @@ export interface SignTransction{
   statusCallback?: (result: ISubmittableResult) => void;
 }
 
-export interface FetchRoles{
-  id: string;
-  name: string;
-  enabled: boolean;
-}
-
 export interface ResponseFetchGroup{
   id: string;
   name: string;
