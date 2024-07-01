@@ -73,7 +73,7 @@ export interface SignTransction{
   statusCallback?: (result: ISubmittableResult) => void;
 }
 
-export interface ResponseFetchGroup{
+export interface FetchResponseData{
   id: string;
   name: string;
   enabled: boolean;

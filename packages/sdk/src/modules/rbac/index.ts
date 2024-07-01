@@ -7,7 +7,7 @@ import { stringToU8a } from '@polkadot/util';
 import type {
   SDKMetadata,
   Address,
-  ResponseFetchGroup,
+  FetchResponseData,
   ResponsePermission,
   ResponseFetchUserGroups,
   ResponseRole2User,
@@ -533,7 +533,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is fetched.
    */
 
-  public async fetchRoles(options: FetchRoles): Promise<ResponseFetchGroup[]> {
+  public async fetchRoles(options: FetchRoles): Promise<FetchResponseData[]> {
     try {
       const { owner } = options;
       if (!owner) throw new Error('Invalid owner address');
@@ -548,7 +548,7 @@ export class RBAC extends Base {
           `Roles not exits with this owner address = ${owner}`
         );
       }
-      const responseData: ResponseFetchGroup[] = roles?.map(
+      const responseData: FetchResponseData[] = roles?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
       return responseData;
@@ -563,7 +563,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the group is fetched.
    */
 
-  public async fetchGroup(option: FetchGroup): Promise<ResponseFetchGroup> {
+  public async fetchGroup(option: FetchGroup): Promise<FetchResponseData> {
     try {
       const { groupId, owner } = option;
       this._validateInput(groupId);
@@ -612,7 +612,7 @@ export class RBAC extends Base {
 
   public async fetchGroupPermissions(
     option: FetchGroup
-  ): Promise<ResponseFetchGroup[]> {
+  ): Promise<FetchResponseData[]> {
     try {
       const { groupId, owner } = option;
       this._validateInput(groupId);
@@ -631,7 +631,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
-      let permissions: ResponseFetchGroup[] = [];
+      let permissions: FetchResponseData[] = [];
       const role2GroupData = (await api.query?.['peaqRbac']?.[
         'role2GroupStore'
       ](role2GroupStoreKey)) as unknown as Role2Group[];
@@ -708,7 +708,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the groups is fetched.
    */
 
-  public async fetchGroups(options: FetchGroups): Promise<ResponseFetchGroup[]> {
+  public async fetchGroups(options: FetchGroups): Promise<FetchResponseData[]> {
     try {
       const { owner } = options;
       if (!owner) throw new Error('Invalid owner address');
@@ -719,7 +719,7 @@ export class RBAC extends Base {
       if (!groups) {
         throw new Error(`No group is found of owner: ${owner}`);
       }
-      const responseData: ResponseFetchGroup[] = groups?.map((item) =>
+      const responseData: FetchResponseData[] = groups?.map((item) =>
         JSON.parse(JSON.stringify(item.toHuman()))
       );
       return responseData;
@@ -736,7 +736,7 @@ export class RBAC extends Base {
 
   public async fetchPermission(
     option: FetchPermission
-  ): Promise<ResponseFetchGroup> {
+  ): Promise<FetchResponseData> {
     try {
       const { owner, permissionId } = option;
       this._validateInput(permissionId);
@@ -777,7 +777,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the permissions is fetched.
    */
 
-  public async fetchPermissions(options: FetchPermissions): Promise<ResponseFetchGroup[]> {
+  public async fetchPermissions(options: FetchPermissions): Promise<FetchResponseData[]> {
     try {
       const { owner } = options;
       if (!owner) throw new Error('Invalid owner address');
@@ -788,7 +788,7 @@ export class RBAC extends Base {
       if (!permissions) {
         throw new Error(`No permission is found of owner: ${owner}`);
       }
-      const responseData: ResponseFetchGroup[] = permissions?.map((item) =>
+      const responseData: FetchResponseData[] = permissions?.map((item) =>
         JSON.parse(JSON.stringify(item.toHuman()))
       );
       return responseData;
@@ -803,7 +803,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is fetched.
    */
 
-  public async fetchRole(option: FetchRole): Promise<ResponseFetchGroup | undefined> {
+  public async fetchRole(option: FetchRole): Promise<FetchResponseData | undefined> {
     try {
       const { owner, roleId } = option;
       this._validateInput(roleId);
@@ -934,7 +934,7 @@ export class RBAC extends Base {
 
   public async fetchUserPermissions(
     option: FetchUserPermissions
-  ): Promise<ResponseFetchGroup[]> {
+  ): Promise<FetchResponseData[]> {
     try {
       const { owner, userId } = option;
       this._validateInput(userId);
@@ -969,7 +969,7 @@ export class RBAC extends Base {
         },
       ]);
 
-      const permissions: ResponseFetchGroup[] = [];
+      const permissions: FetchResponseData[] = [];
       const processed_roles = [];
 
       // Role2User
