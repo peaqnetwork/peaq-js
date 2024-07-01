@@ -87,7 +87,7 @@ declare module 'peaq-did-proto-js' {
     clearVerificationmethodsList(): this;
 
     getSignature(): Signature | undefined;
-    setSignature(value?: Signature): this; // do we want a list of signatures? will have to change proto if we do
+    setSignature(value?: Signature): this;
     hasSignature(): boolean;
     clearSignature(): this;
 

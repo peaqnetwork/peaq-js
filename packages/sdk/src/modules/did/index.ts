@@ -13,7 +13,7 @@ import { Base } from '../base';
 
 export interface CustomDocumentFields {
   verifications?: Verification[],
-  signatures?: Signature[],
+  signature?: Signature,
   services?: Service[];
 }
 
@@ -234,12 +234,10 @@ export class Did extends Base {
       });
     }
 
-    // is there only ever 1 signature?
-    if (options.customDocumentFields?.signatures) {
-      options.customDocumentFields.signatures.forEach((signature) => {
+    if (options.customDocumentFields?.signature) {
+        const signature = options.customDocumentFields?.signature;
         const documentSignature = this._createSignature(signature);
         document.setSignature(documentSignature);
-      });
     }
 
     if (options.customDocumentFields?.services) {
