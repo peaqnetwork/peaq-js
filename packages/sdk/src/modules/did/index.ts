@@ -1,6 +1,7 @@
 import * as peaqDidProto from 'peaq-did-proto-js';
 import { Attribute } from '@peaq-network/types/interfaces';
 import { ApiPromise } from '@polkadot/api';
+import { decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
@@ -162,8 +163,8 @@ export class Did extends Base {
     return `did:peaq:${address}`;
   }
 
-  private _createVerificationMethod(verification: Verification, address: Address) {
-    const id = uuidv4();
+  private _createVerificationMethod(verification: Verification, address: Address, keyNum: number) {
+    const id = `did:peaq:${address}#keys-${keyNum}`;
     const verificationMethod = new peaqDidProto.VerificationMethod();
 
     // does this id change if it is Ed25519 vs Sr25519?
@@ -176,7 +177,12 @@ export class Did extends Base {
 
     verificationMethod.setType(verification.type);
     verificationMethod.setController(this._getDidId(address));
-    verificationMethod.setPublickeymultibase(`z${address}`);
+
+    // generate & set public key multibase
+    const publicKey = decodeAddress(address);
+    const publicKeyHex = u8aToHex(publicKey);
+    const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
+    verificationMethod.setPublickeymultibase(publicKeyMultibase);
 
     return { verificationMethod, verificationId: id };
   }
@@ -226,11 +232,14 @@ export class Did extends Base {
       this._getDidId(options.didControllerAddress.toString())
     );
 
+
     if (options.customDocumentFields?.verifications) {
+      let keyNum = 1;
       options.customDocumentFields.verifications.forEach((verification) => {
-        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, options.didAccountAddress.toString());
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, options.didAccountAddress.toString(), keyNum);
         document.addVerificationmethods(verificationMethod);
         document.addAuthentications(verificationId);
+        keyNum += 1;
       });
     }
 
