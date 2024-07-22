@@ -1,6 +1,7 @@
 import * as peaqDidProto from 'peaq-did-proto-js';
 import { Attribute } from '@peaq-network/types/interfaces';
 import { ApiPromise } from '@polkadot/api';
+import { decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
@@ -8,24 +9,41 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
 import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
-import { CreateStorageKeysEnum } from '../../types';
+import { CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
 
 export interface CustomDocumentFields {
-  services: DocumentService[];
+  verifications?: Verification[],
+  signature?: Signature,
+  services?: Service[];
 }
 
-type DocumentService = {
+export interface UpdateDocumentFields {
+  controller?: string,
+  verifications?: Verification[],
+  signature?: Signature,
+  services?: Service[];
+}
+
+type Verification = {
+  id?: string;
+  type: peaqDidProto.VerificationType;
+  controller?: string;
+  pubicKeyMultibase?: string;
+}
+
+type Signature = {
+  type: peaqDidProto.VerificationType;
+  issuer: string;
+  hash: string;
+}
+
+type Service = {
   id: string;
   type: string;
-} & (
-  | {
-      serviceEndpoint: string;
-    }
-  | {
-      data: string;
-    }
-);
+  serviceEndpoint?: string;
+  data?: string;
+}
 
 interface CreateDidOptions {
   name: string;
@@ -43,7 +61,14 @@ interface UpdateDidOptions {
   name: string;
   address?: Address;
   seed?: string;
-  customDocumentFields: CustomDocumentFields;
+  customDocumentFields: UpdateDocumentFields;
+}
+
+interface UpdateDidDocumentOptions {
+  didAccountAddress: Address;
+  didControllerAddress: Address;
+  customDocumentFields?: UpdateDocumentFields;
+  oldDocument: DidDocument
 }
 
 interface RemoveDidOptions {
@@ -64,7 +89,7 @@ interface RemoveDidResult {
 }
 
 interface UpdateDidResult {
-  log?: string,
+  log: string,
   hash: CodecHash;
   unsubscribe: () => void;
 }
@@ -174,9 +199,6 @@ export class Did extends Base {
     }
   }
 
-  // TODO create requirements so that the DID Document is updated correctly based on the peaq-did-proto
-  // - read to make sure there is one?
-  // - how to confirm the previous verifications if they add a new one
   public async update(options: UpdateDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
   ): Promise<UpdateDidResult | null> {
@@ -184,7 +206,6 @@ export class Did extends Base {
       const api = this._getApi();
 
       const { name, address = '', seed = '', customDocumentFields } = options;
-
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
@@ -192,17 +213,14 @@ export class Did extends Base {
       if (!accountAddress) throw new Error('Address is required');
       if (!customDocumentFields) throw new Error('DID Document fields must be configured before manually changing.');
 
-      
-      // TODO: read did to get back did document to add new data to
-      // - discuss how to properly update and implement
-      const did_document = await this.read({name, address});
+      const readDocument = await this.read({name: name, address: accountAddress});
+      const oldDocument = readDocument?.document as DidDocument;
 
-      // do I need to create a new one or update the old one??
-      // can call the _updateDidDocument() function below -> not started, need to decide best practices
-      const didDocument = this._createDidDocument({
+      const didDocument = this._updateDidDocument({
         didAccountAddress: accountAddress,
         didControllerAddress: keyPair.address,
-        customDocumentFields,
+        customDocumentFields: customDocumentFields,
+        oldDocument: oldDocument
       });
 
       const attributeExtrinsic = api.tx?.['peaqDid']?.['updateAttribute'](
@@ -270,24 +288,47 @@ export class Did extends Base {
     return `did:peaq:${address}`;
   }
 
-  private _createVerificationMethod(address: Address) {
-    const id = uuidv4();
+  private _createVerificationMethod(verification: Verification, address: Address, keyNum: number) {
+    const id = `did:peaq:${address}#keys-${keyNum}`;
     const verificationMethod = new peaqDidProto.VerificationMethod();
 
     verificationMethod.setId(id);
-    verificationMethod.setType(
-      peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
-    );
+
+    if (verification.type !== peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020 &&
+      verification.type !== peaqDidProto.VerificationType.SR25519VERIFICATIONKEY2020) {
+      throw new Error('Invalid type: Type must be either 0: ED25519VERIFICATIONKEY2020 or 1: SR25519VERIFICATIONKEY2020');
+    }
+
+    verificationMethod.setType(verification.type);
     verificationMethod.setController(this._getDidId(address));
-    verificationMethod.setPublickeymultibase(`z${address}`);
+
+    // generate & set public key multibase
+    const publicKey = decodeAddress(address, false, 42)
+    const publicKeyHex = u8aToHex(publicKey);
+    const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
+    verificationMethod.setPublickeymultibase(publicKeyMultibase);
 
     return { verificationMethod, verificationId: id };
   }
 
-  private _createService(service: DocumentService) {
+  private _createSignature(signature: Signature) {
+    if (!Object.values(peaqDidProto.VerificationType).includes(signature.type)) throw new Error('Signature Type is required');
+    if (!signature.issuer) throw new Error('Signature Issuer is required');
+    if (!signature.hash) throw new Error('Signature Hash is required');
+
+    const signatureMethod = new peaqDidProto.Signature();
+
+    signatureMethod.setType(signature.type);
+    signatureMethod.setIssuer(signature.issuer);
+    signatureMethod.setHash(signature.hash);
+
+    return signatureMethod;
+  }
+
+  private _createService(service: Service) {
     if (!service.id) throw new Error('Service ID is required');
     if (!service.type) throw new Error('Service type is required');
-    if (!('serviceEndpoint' in service) && !('data' in service))
+    if (!(service.serviceEndpoint) && !(service.data))
       throw new Error(
         'Either service endpoint or data is required for service'
       );
@@ -296,15 +337,13 @@ export class Did extends Base {
 
     documentService.setId(service.id);
     documentService.setType(service.type);
-
-    if ('serviceEndpoint' in service) {
+    if (service.serviceEndpoint) {
       documentService.setServiceendpoint(service.serviceEndpoint);
     }
 
-    if ('data' in service) {
+    if (service.data) {
       documentService.setData(service.data);
     }
-
     return documentService;
   }
 
@@ -316,12 +355,22 @@ export class Did extends Base {
       this._getDidId(options.didControllerAddress.toString())
     );
 
-    const { verificationId, verificationMethod } =
-      this._createVerificationMethod(options.didAccountAddress.toString());
 
-    document.addVerificationmethods(verificationMethod);
+    if (options.customDocumentFields?.verifications) {
+      let keyNum = 1;
+      options.customDocumentFields.verifications.forEach((verification) => {
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, options.didAccountAddress.toString(), keyNum);
+        document.addVerificationmethods(verificationMethod);
+        document.addAuthentications(verificationId);
+        keyNum += 1;
+      });
+    }
 
-    document.addAuthentications(verificationId);
+    if (options.customDocumentFields?.signature) {
+        const signature = options.customDocumentFields?.signature;
+        const documentSignature = this._createSignature(signature);
+        document.setSignature(documentSignature);
+    }
 
     if (options.customDocumentFields?.services) {
       options.customDocumentFields.services.forEach((service) => {
@@ -334,13 +383,51 @@ export class Did extends Base {
     return u8aToHex(bytes);
   }
 
-  // in my update function I am calling _createDidDocument. Need to have conversations to see what is best.
-  private _updateDidDocument(options: UpdateDidOptions): `0x${string}` {
-    // add checks here
+  private _updateDidDocument(options: UpdateDidDocumentOptions): `0x${string}` {
+    const { didAccountAddress, didControllerAddress, customDocumentFields, oldDocument } = options;
+    
+    const new_document = new peaqDidProto.Document();
+    new_document.setId(oldDocument.id);
 
-    // const { verificationId, verificationMethod } =
-    // this._updateVerificationMethod(options.didAccountAddress.toString());
+    // set old controller if not present
+    if (customDocumentFields?.controller) {
+      // TODO is there a check to make sure they can change controller?
+      // if the read public metadata key and the old_document controller match, then you are able to change the controller
 
-    return u8aToHex();
+      const controller = customDocumentFields?.controller;
+      if(!controller.includes("did:peaq:")) {
+        throw new Error('Incorrect controller format. Must be in the form did:peaq:${OwnerAddress}');
+      }
+      new_document.setController(customDocumentFields?.controller);
+    }
+    else  {
+      new_document.setController(oldDocument.controller);
+    }
+
+    if (customDocumentFields?.verifications) {
+      customDocumentFields.verifications.forEach((verification) => {
+        let keyNum = 1; 
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), keyNum);
+        new_document.addVerificationmethods(verificationMethod);
+        new_document.addAuthentications(verificationId);
+        keyNum += 1;
+      })
+    }
+
+    if (customDocumentFields?.signature) {
+      const signature = customDocumentFields?.signature;
+      const documentSignature = this._createSignature(signature);
+      new_document.setSignature(documentSignature);
+    }
+
+    if (customDocumentFields?.services) {
+        customDocumentFields.services.forEach((service) => {
+          const documentService = this._createService(service);
+          new_document.addServices(documentService);
+      });
+    }
+
+    const bytes = new_document.serializeBinary();
+    return u8aToHex(bytes);
   }
 }
