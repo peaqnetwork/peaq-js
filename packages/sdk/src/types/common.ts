@@ -110,7 +110,8 @@ export interface PeaqEvent{
   section: string;
   method: string;
   eventData: PeaqEventData[];
-  error: {
+  blockHash?: string,
+  error?: {
     documentation: string[];
     name: string
   } | null
