@@ -5,10 +5,9 @@ import { decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
-import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
-import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
+import type { Address, ReadDidResponse, SDKMetadata } from '../../types';
 import { CreateStorageKeysEnum } from '../../types';
 import { Base } from '../base';
 
@@ -167,7 +166,6 @@ export class Did extends Base {
     const id = `did:peaq:${address}#keys-${keyNum}`;
     const verificationMethod = new peaqDidProto.VerificationMethod();
 
-    // does this id change if it is Ed25519 vs Sr25519?
     verificationMethod.setId(id);
 
     if (verification.type !== peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020 &&
@@ -179,7 +177,7 @@ export class Did extends Base {
     verificationMethod.setController(this._getDidId(address));
 
     // generate & set public key multibase
-    const publicKey = decodeAddress(address);
+    const publicKey = decodeAddress(address, false, 42)
     const publicKeyHex = u8aToHex(publicKey);
     const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
     verificationMethod.setPublickeymultibase(publicKeyMultibase);
