@@ -235,7 +235,7 @@ export class Did extends Base {
       );
 
       const nonce = await this._getNonce(keyPair.address);
-      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
+      const eventData = await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
       const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback &&
           statusCallback(result as unknown as ISubmittableResult);
@@ -243,7 +243,7 @@ export class Did extends Base {
 
       return {
         log: `Successfully updated the DID Document of name ${name} at address ${accountAddress}`,
-        hash: attributeExtrinsic.hash as unknown as CodecHash,
+        hash: eventData[0]?.blockHash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
@@ -271,7 +271,7 @@ export class Did extends Base {
       );
 
       const nonce = await this._getNonce(keyPair.address);
-      await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
+      const eventData = await this._newSignTx({ nonce, address: keyPair, extrinsics: attributeExtrinsic });
       // await attributeExtrinsic.signAsync(keyPair, { nonce });
       const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback &&
@@ -280,7 +280,7 @@ export class Did extends Base {
       
       return {
         log: `Successfully removed the DID of name ${name} from address ${accountAddress}`,
-        hash: attributeExtrinsic.hash,
+        hash: eventData[0]?.blockHash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
