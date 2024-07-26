@@ -1,5 +1,5 @@
 import { v4 as uuidv4, v4 } from 'uuid';
-import { CreateStorageKeysEnum, FetchRoles } from '../../types';
+import { CreateStorageKeysEnum, } from '../../types';
 import { Base } from '../base';
 import { ApiPromise } from '@polkadot/api';
 import { createStorageKeys } from '../../utils';
@@ -7,7 +7,7 @@ import { stringToU8a } from '@polkadot/util';
 import type {
   SDKMetadata,
   Address,
-  ResponseFetchGroup,
+  FetchResponseData,
   ResponsePermission,
   ResponseFetchUserGroups,
   ResponseRole2User,
@@ -102,6 +102,18 @@ interface FetchPermission {
 interface FetchRole {
   owner: Address;
   roleId: string;
+}
+
+interface FetchGroups {
+  owner: Address;
+}
+
+interface FetchPermissions {
+  owner: Address;
+}
+
+interface FetchRoles {
+  owner: Address;
 }
 
 interface FetchRolePermissions {
@@ -517,35 +529,28 @@ export class RBAC extends Base {
 
   /**
    * Fetch all roles.
-   * @param ownerAddress - The ownerAddress is public address of user or owner who created a roles.
+   * @param options - The ownerAddress is public address of user or owner who created a roles.
    * @returns A promise that resolves when the role is fetched.
    */
 
-  public async fetchRoles(ownerAddress: Address): Promise<FetchRoles[]> {
+  public async fetchRoles(options: FetchRoles): Promise<FetchResponseData[]> {
     try {
-      if (!ownerAddress) throw new Error('Invalid owner address');
+      const { owner } = options;
+      if (!owner) throw new Error('Invalid owner address');
       const api = this._getApi();
+
       const roles = (await api.query?.['peaqRbac']?.['roleStore'](
-        ownerAddress
+        owner
       )) as unknown as Entity[];
+
       if (!roles) {
         throw new Error(
-          `Roles not exits with this owner address = ${ownerAddress}`
+          `Roles not exits with this owner address = ${owner}`
         );
       }
-      const responseData: FetchRoles[] = [];
-      roles.forEach((item, index) => {
-        const readAbleData = item.toHuman();
-        const stringFyData = JSON.stringify(readAbleData);
-        const parseData = JSON.parse(stringFyData);
-        const { id, name, enabled } = parseData;
-        let payload = {
-          id,
-          name,
-          enabled,
-        };
-        responseData.push(payload);
-      });
+      const responseData: FetchResponseData[] = roles?.map(
+        (item) => JSON.parse(JSON.stringify(item.toHuman()))
+      );
       return responseData;
     } catch (error) {
       throw new Error(`Error occurred while fetching roles: ${error}`);
@@ -558,7 +563,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the group is fetched.
    */
 
-  public async fetchGroup(option: FetchGroup): Promise<ResponseFetchGroup> {
+  public async fetchGroup(option: FetchGroup): Promise<FetchResponseData> {
     try {
       const { groupId, owner } = option;
       this._validateInput(groupId);
@@ -607,7 +612,7 @@ export class RBAC extends Base {
 
   public async fetchGroupPermissions(
     option: FetchGroup
-  ): Promise<ResponseFetchGroup[]> {
+  ): Promise<FetchResponseData[]> {
     try {
       const { groupId, owner } = option;
       this._validateInput(groupId);
@@ -626,7 +631,7 @@ export class RBAC extends Base {
           type: CreateStorageKeysEnum.STANDARD,
         },
       ]);
-      let permissions: ResponseFetchGroup[] = [];
+      let permissions: FetchResponseData[] = [];
       const role2GroupData = (await api.query?.['peaqRbac']?.[
         'role2GroupStore'
       ](role2GroupStoreKey)) as unknown as Role2Group[];
@@ -699,12 +704,14 @@ export class RBAC extends Base {
 
   /**
    * Fetch all groups.
-   * @param option - The option for fetch groups.
+   * @param options - The option for fetch groups.
    * @returns A promise that resolves when the groups is fetched.
    */
 
-  public async fetchGroups(owner: Address): Promise<FetchRoles[]> {
+  public async fetchGroups(options: FetchGroups): Promise<FetchResponseData[]> {
     try {
+      const { owner } = options;
+      if (!owner) throw new Error('Invalid owner address');
       const api = this._getApi();
       const groups = (await api.query?.['peaqRbac']?.['groupStore'](
         owner
@@ -712,7 +719,7 @@ export class RBAC extends Base {
       if (!groups) {
         throw new Error(`No group is found of owner: ${owner}`);
       }
-      const responseData: FetchRoles[] = groups?.map((item) =>
+      const responseData: FetchResponseData[] = groups?.map((item) =>
         JSON.parse(JSON.stringify(item.toHuman()))
       );
       return responseData;
@@ -729,7 +736,7 @@ export class RBAC extends Base {
 
   public async fetchPermission(
     option: FetchPermission
-  ): Promise<ResponseFetchGroup> {
+  ): Promise<FetchResponseData> {
     try {
       const { owner, permissionId } = option;
       this._validateInput(permissionId);
@@ -766,22 +773,24 @@ export class RBAC extends Base {
 
   /**
    * Fetch all permissions.
-   * @param option - The option for fetch permissions.
+   * @param options - The option for fetch permissions.
    * @returns A promise that resolves when the permissions is fetched.
    */
 
-  public async fetchPermissions(owner: Address): Promise<ResponseFetchGroup[]> {
+  public async fetchPermissions(options: FetchPermissions): Promise<FetchResponseData[]> {
     try {
-      const api = await this._getApi();
+      const { owner } = options;
+      if (!owner) throw new Error('Invalid owner address');
+      const api = this._getApi();
       const permissions = (await api.query?.['peaqRbac']?.['permissionStore'](
         owner
       )) as unknown as Entity[];
-      const responseData: FetchRoles[] = permissions?.map((item) =>
-        JSON.parse(JSON.stringify(item.toHuman()))
-      );
       if (!permissions) {
         throw new Error(`No permission is found of owner: ${owner}`);
       }
+      const responseData: FetchResponseData[] = permissions?.map((item) =>
+        JSON.parse(JSON.stringify(item.toHuman()))
+      );
       return responseData;
     } catch (error) {
       throw new Error(`Error occurred while fetching permissions: ${error}`);
@@ -794,7 +803,7 @@ export class RBAC extends Base {
    * @returns A promise that resolves when the role is fetched.
    */
 
-  public async fetchRole(option: FetchRole): Promise<FetchRoles | undefined> {
+  public async fetchRole(option: FetchRole): Promise<FetchResponseData | undefined> {
     try {
       const { owner, roleId } = option;
       this._validateInput(roleId);
@@ -925,7 +934,7 @@ export class RBAC extends Base {
 
   public async fetchUserPermissions(
     option: FetchUserPermissions
-  ): Promise<ResponseFetchGroup[]> {
+  ): Promise<FetchResponseData[]> {
     try {
       const { owner, userId } = option;
       this._validateInput(userId);
@@ -960,7 +969,7 @@ export class RBAC extends Base {
         },
       ]);
 
-      const permissions: ResponseFetchGroup[] = [];
+      const permissions: FetchResponseData[] = [];
       const processed_roles = [];
 
       // Role2User

@@ -73,13 +73,7 @@ export interface SignTransction{
   statusCallback?: (result: ISubmittableResult) => void;
 }
 
-export interface FetchRoles{
-  id: string;
-  name: string;
-  enabled: boolean;
-}
-
-export interface ResponseFetchGroup{
+export interface FetchResponseData{
   id: string;
   name: string;
   enabled: boolean;
@@ -116,7 +110,8 @@ export interface PeaqEvent{
   section: string;
   method: string;
   eventData: PeaqEventData[];
-  error: {
+  blockHash?: string,
+  error?: {
     documentation: string[];
     name: string
   } | null
