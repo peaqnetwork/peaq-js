@@ -29,7 +29,7 @@ type Verification = {
   id?: string;
   type: peaqDidProto.VerificationType;
   controller?: string;
-  pubicKeyMultibase?: string;
+  publicKeyMultibase?: string;
 }
 
 type Signature = {
@@ -49,6 +49,7 @@ interface CreateDidOptions {
   name: string;
   address?: Address;
   seed?: string;
+  prefix?: string;
   customDocumentFields?: CustomDocumentFields;
 }
 
@@ -67,6 +68,7 @@ interface UpdateDidOptions {
 interface UpdateDidDocumentOptions {
   didAccountAddress: Address;
   didControllerAddress: Address;
+  prefix?: string
   customDocumentFields?: UpdateDocumentFields;
   oldDocument: DidDocument
 }
@@ -98,6 +100,7 @@ interface UpdateDidResult {
 interface DidDocumentOptions {
   didAccountAddress: Address;
   didControllerAddress: Address;
+  prefix?: string;
   customDocumentFields?: CustomDocumentFields;
 }
 
@@ -121,7 +124,7 @@ export class Did extends Base {
     try {
       const api = this._getApi();
 
-      const { name, address = '', seed = '', customDocumentFields } = options;
+      const { name, address = '', seed = '', prefix = '', customDocumentFields } = options;
 
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
@@ -132,6 +135,7 @@ export class Did extends Base {
       const didDocument = this._createDidDocument({
         didAccountAddress: accountAddress,
         didControllerAddress: keyPair.address,
+        prefix: prefix,
         customDocumentFields,
       });
 
@@ -284,13 +288,16 @@ export class Did extends Base {
     }
   }
 
-  private _getDidId(address: Address): string {
-    return `did:peaq:${address}`;
+  private _getDidId(address: Address, prefix: string): string {
+    if (prefix == ''){
+      return `did:peaq:${address}`;
+    }
+    return `did:${prefix}:${address}`;
   }
 
-  private _createVerificationMethod(verification: Verification, address: Address, keyNum: number) {
-    const id = `did:peaq:${address}#keys-${keyNum}`;
+  private _createVerificationMethod(verification: Verification, address: Address, prefix: string, keyNum: number) {
     const verificationMethod = new peaqDidProto.VerificationMethod();
+    const id = this._getDidId(address.toString(), prefix);
 
     verificationMethod.setId(id);
 
@@ -300,7 +307,7 @@ export class Did extends Base {
     }
 
     verificationMethod.setType(verification.type);
-    verificationMethod.setController(this._getDidId(address));
+    verificationMethod.setController(this._getDidId(address, prefix));
 
     // generate & set public key multibase
     const publicKey = decodeAddress(address, false, 42)
@@ -348,32 +355,32 @@ export class Did extends Base {
   }
 
   private _createDidDocument(options: DidDocumentOptions): `0x${string}` {
+    const { didAccountAddress, didControllerAddress, prefix = '', customDocumentFields } = options;
+
     const document = new peaqDidProto.Document();
 
-    document.setId(this._getDidId(options.didAccountAddress.toString()));
-    document.setController(
-      this._getDidId(options.didControllerAddress.toString())
-    );
+    document.setId(this._getDidId(didAccountAddress.toString(), prefix));
+    document.setController(this._getDidId(didControllerAddress.toString(), prefix));
 
 
-    if (options.customDocumentFields?.verifications) {
+    if (customDocumentFields?.verifications) {
       let keyNum = 1;
-      options.customDocumentFields.verifications.forEach((verification) => {
-        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, options.didAccountAddress.toString(), keyNum);
+      customDocumentFields.verifications.forEach((verification) => {
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), prefix, keyNum);
         document.addVerificationmethods(verificationMethod);
         document.addAuthentications(verificationId);
         keyNum += 1;
       });
     }
 
-    if (options.customDocumentFields?.signature) {
-        const signature = options.customDocumentFields?.signature;
+    if (customDocumentFields?.signature) {
+        const signature = customDocumentFields?.signature;
         const documentSignature = this._createSignature(signature);
         document.setSignature(documentSignature);
     }
 
-    if (options.customDocumentFields?.services) {
-      options.customDocumentFields.services.forEach((service) => {
+    if (customDocumentFields?.services) {
+      customDocumentFields.services.forEach((service) => {
         const documentService = this._createService(service);
         document.addServices(documentService);
       });
@@ -384,7 +391,7 @@ export class Did extends Base {
   }
 
   private _updateDidDocument(options: UpdateDidDocumentOptions): `0x${string}` {
-    const { didAccountAddress, didControllerAddress, customDocumentFields, oldDocument } = options;
+    const { didAccountAddress, didControllerAddress, prefix = '', customDocumentFields, oldDocument } = options;
     
     const new_document = new peaqDidProto.Document();
     new_document.setId(oldDocument.id);
@@ -395,8 +402,10 @@ export class Did extends Base {
       // if the read public metadata key and the old_document controller match, then you are able to change the controller
 
       const controller = customDocumentFields?.controller;
-      if(!controller.includes("did:peaq:")) {
-        throw new Error('Incorrect controller format. Must be in the form did:peaq:${OwnerAddress}');
+
+      const regex = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/; // regex would need to change if we update to use ethereum keyrings as well
+      if(!regex.test(controller)) {
+        throw new Error('Incorrect controller format. Must be in the form did:${prefix}:${OwnerAddress}');
       }
       new_document.setController(customDocumentFields?.controller);
     }
@@ -407,7 +416,7 @@ export class Did extends Base {
     if (customDocumentFields?.verifications) {
       customDocumentFields.verifications.forEach((verification) => {
         let keyNum = 1; 
-        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), keyNum);
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), prefix, keyNum);
         new_document.addVerificationmethods(verificationMethod);
         new_document.addAuthentications(verificationId);
         keyNum += 1;
