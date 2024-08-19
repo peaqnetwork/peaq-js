@@ -13,12 +13,14 @@ import { CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
 
 export interface CustomDocumentFields {
+  prefix?: string,
   verifications?: Verification[],
   signature?: Signature,
   services?: Service[];
 }
 
 export interface UpdateDocumentFields {
+  prefix?: string,
   controller?: string,
   verifications?: Verification[],
   signature?: Signature,
@@ -49,7 +51,6 @@ interface CreateDidOptions {
   name: string;
   address?: Address;
   seed?: string;
-  prefix?: string;
   customDocumentFields?: CustomDocumentFields;
 }
 
@@ -68,7 +69,6 @@ interface UpdateDidOptions {
 interface UpdateDidDocumentOptions {
   didAccountAddress: Address;
   didControllerAddress: Address;
-  prefix?: string
   customDocumentFields?: UpdateDocumentFields;
   oldDocument: DidDocument
 }
@@ -100,7 +100,6 @@ interface UpdateDidResult {
 interface DidDocumentOptions {
   didAccountAddress: Address;
   didControllerAddress: Address;
-  prefix?: string;
   customDocumentFields?: CustomDocumentFields;
 }
 
@@ -124,7 +123,7 @@ export class Did extends Base {
     try {
       const api = this._getApi();
 
-      const { name, address = '', seed = '', prefix = '', customDocumentFields } = options;
+      const { name, address = '', seed = '', customDocumentFields } = options;
 
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
@@ -135,7 +134,6 @@ export class Did extends Base {
       const didDocument = this._createDidDocument({
         didAccountAddress: accountAddress,
         didControllerAddress: keyPair.address,
-        prefix: prefix,
         customDocumentFields,
       });
 
@@ -148,7 +146,6 @@ export class Did extends Base {
 
       const nonce = await this._getNonce(keyPair.address);
       const eventData = await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
-      // await attributeExtrinsic.signAsync(keyPair, { nonce });
       const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback &&
           statusCallback(result as unknown as ISubmittableResult);
@@ -218,6 +215,8 @@ export class Did extends Base {
       if (!customDocumentFields) throw new Error('DID Document fields must be configured before manually changing.');
 
       const readDocument = await this.read({name: name, address: accountAddress});
+      if (!readDocument) throw new Error(`DID Document of name ${name} for the account address ${accountAddress} was not found.`);
+
       const oldDocument = readDocument?.document as DidDocument;
 
       const didDocument = this._updateDidDocument({
@@ -264,6 +263,9 @@ export class Did extends Base {
 
       if (!name) throw new Error('Name is required');
       if (!accountAddress) throw new Error('Address is required');
+
+      const readDocument = await this.read({name: name, address: accountAddress});
+      if (!readDocument) throw new Error(`DID Document of name ${name} for the account address ${accountAddress} was not found.`);
 
       const attributeExtrinsic = api.tx?.['peaqDid']?.['removeAttribute'](
         accountAddress,
@@ -355,9 +357,17 @@ export class Did extends Base {
   }
 
   private _createDidDocument(options: DidDocumentOptions): `0x${string}` {
-    const { didAccountAddress, didControllerAddress, prefix = '', customDocumentFields } = options;
+    const { didAccountAddress, didControllerAddress, customDocumentFields } = options;
 
     const document = new peaqDidProto.Document();
+
+    let prefix = '';
+    if (customDocumentFields?.prefix){
+      prefix = customDocumentFields.prefix;
+    }
+    else { // default to peaq prefix after did: if user doesn't manually set
+      prefix = 'peaq';
+    }
 
     document.setId(this._getDidId(didAccountAddress.toString(), prefix));
     document.setController(this._getDidId(didControllerAddress.toString(), prefix));
@@ -391,23 +401,32 @@ export class Did extends Base {
   }
 
   private _updateDidDocument(options: UpdateDidDocumentOptions): `0x${string}` {
-    const { didAccountAddress, didControllerAddress, prefix = '', customDocumentFields, oldDocument } = options;
+    const { didAccountAddress, didControllerAddress, customDocumentFields, oldDocument } = options;
     
     const new_document = new peaqDidProto.Document();
     new_document.setId(oldDocument.id);
+
+    let prefix = '';
+    if (customDocumentFields?.prefix){
+      prefix = customDocumentFields.prefix;
+    }
+    else { // default to peaq prefix after did: if user doesn't manually set
+      prefix = 'peaq';
+    }
 
     // set old controller if not present
     if (customDocumentFields?.controller) {
       // TODO is there a check to make sure they can change controller?
       // if the read public metadata key and the old_document controller match, then you are able to change the controller
 
-      const controller = customDocumentFields?.controller;
+      let controller = customDocumentFields?.controller;
+      controller = `did:${prefix}:${controller}`;
 
       const regex = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/; // regex would need to change if we update to use ethereum keyrings as well
       if(!regex.test(controller)) {
-        throw new Error('Incorrect controller format. Must be in the form did:${prefix}:${OwnerAddress}');
+        throw new Error('Incorrect controller format. Make sure to set prefix in customDocumentFields.');
       }
-      new_document.setController(customDocumentFields?.controller);
+      new_document.setController(controller);
     }
     else  {
       new_document.setController(oldDocument.controller);
