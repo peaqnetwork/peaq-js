@@ -8,6 +8,7 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
+import { CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
 import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
 import { CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
@@ -106,7 +107,9 @@ interface DidDocumentOptions {
 export class Did extends Base {
   constructor(
     protected override readonly _api?: ApiPromise,
-    protected readonly _metadata?: SDKMetadata
+    protected readonly _metadata?: SDKMetadata,
+    protected _prefix?: string
+
   ) {
     super();
   }
@@ -125,11 +128,12 @@ export class Did extends Base {
 
       const { name, address = '', seed = '', customDocumentFields } = options;
 
+      if (!name) throw new NameError('Name is required when creating a DID.');
+      if (seed !== '') this._checkSeed(seed);
+      if (address !== '') this._checkAddress(address);
+
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
-
-      if (!name) throw new Error('Name is required');
-      if (!accountAddress) throw new Error('Address is required');
 
       const didDocument = this._createDidDocument({
         didAccountAddress: accountAddress,
@@ -156,8 +160,8 @@ export class Did extends Base {
         unsubscribe,
       };
     } catch (error) {
-      throw new Error(`Error creating DID: ${error}`);
-    }
+        throw new CreateDidError(`${error}`);
+      }
   }
 
   /**
@@ -169,10 +173,13 @@ export class Did extends Base {
     try {
       const api = this._getApi();
 
-      const { name, address } = options;
+      const { name, address = '' } = options;
+
+      if (!name) throw new Error('Name is required when reading a DID.');
+      if (address !== '') this._checkAddress(address);
+
       const accountAddress = address || this._metadata?.pair?.address;
 
-      if (!name) throw new Error('Name is required');
       if (!accountAddress) throw new Error('Address is required');
 
       const { hashed_key } = createStorageKeys([
@@ -196,7 +203,7 @@ export class Did extends Base {
         document: document.toObject(),
       } as ReadDidResponse;
     } catch (error) {
-      throw new Error(`Error reading DID attribute: ${error}`);
+      throw new ReadDidError(`${error}`);
     }
   }
 
@@ -207,18 +214,21 @@ export class Did extends Base {
       const api = this._getApi();
 
       const { name, address = '', seed = '', customDocumentFields } = options;
+
+      if (!name) throw new NameError('Name is required when updating a DID.');
+      if (seed !== '') this._checkSeed(seed);
+      if (address !== '') this._checkAddress(address);
+
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
-      if (!name) throw new Error('Name is required');
-      if (!accountAddress) throw new Error('Address is required');
-      if (!customDocumentFields) throw new Error('DID Document fields must be configured before manually changing.');
+      if (!accountAddress) throw new AddressError('Address is required');
+      if (!customDocumentFields) throw new NoCustomFieldsError('DID Document fields must be configured before manually changing.');
 
       const readDocument = await this.read({name: name, address: accountAddress});
-      if (!readDocument) throw new Error(`DID Document of name ${name} for the account address ${accountAddress} was not found.`);
+      if (!readDocument) throw new DidNotFoundError(`DID Document of name ${name} for the account address ${accountAddress} was not found.`);
 
       const oldDocument = readDocument?.document as DidDocument;
-
       const didDocument = this._updateDidDocument({
         didAccountAddress: accountAddress,
         didControllerAddress: keyPair.address,
@@ -246,10 +256,11 @@ export class Did extends Base {
         unsubscribe,
       };
     } catch (error) {
-      throw new Error(`Update DID ${error}`);
+      throw new UpdateDidError(`${error}`);
     }
   }
 
+  // TODO add custom errors
   public async remove(options: RemoveDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
   ): Promise<RemoveDidResult | null> {
@@ -286,7 +297,7 @@ export class Did extends Base {
         unsubscribe,
       };
     } catch (error) {
-      throw new Error(`Remove DID ${error}`);
+      throw new RemoveDidError(`Remove DID ${error}`);
     }
   }
 
@@ -361,22 +372,21 @@ export class Did extends Base {
 
     const document = new peaqDidProto.Document();
 
-    let prefix = '';
     if (customDocumentFields?.prefix){
-      prefix = customDocumentFields.prefix;
+      this._prefix = customDocumentFields?.prefix;
     }
     else { // default to peaq prefix after did: if user doesn't manually set
-      prefix = 'peaq';
+      this._prefix = 'peaq';
     }
 
-    document.setId(this._getDidId(didAccountAddress.toString(), prefix));
-    document.setController(this._getDidId(didControllerAddress.toString(), prefix));
+    document.setId(this._getDidId(didAccountAddress.toString(), this._prefix));
+    document.setController(this._getDidId(didControllerAddress.toString(), this._prefix));
 
 
     if (customDocumentFields?.verifications) {
       let keyNum = 1;
       customDocumentFields.verifications.forEach((verification) => {
-        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), prefix, keyNum);
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), this._prefix as string, keyNum);
         document.addVerificationmethods(verificationMethod);
         document.addAuthentications(verificationId);
         keyNum += 1;
@@ -404,15 +414,24 @@ export class Did extends Base {
     const { didAccountAddress, didControllerAddress, customDocumentFields, oldDocument } = options;
     
     const new_document = new peaqDidProto.Document();
-    new_document.setId(oldDocument.id);
 
-    let prefix = '';
+    const old_id = oldDocument.id;
+    const idParts = old_id.split(':');
+
+    // if there is a prefix change id to include that prefix
     if (customDocumentFields?.prefix){
-      prefix = customDocumentFields.prefix;
+      // only allows the change if current prefix matches what was set beforehand
+      if (idParts.length === 3 && idParts[1] === this._prefix) {
+        this._prefix = customDocumentFields?.prefix;
+        const new_id = `did:${this._prefix}:${idParts[2]}`;
+        new_document.setId(new_id);
+      }
     }
-    else { // default to peaq prefix after did: if user doesn't manually set
-      prefix = 'peaq';
+    else { // default to previous prefix after did: if user doesn't manually set
+      new_document.setId(oldDocument.id);
+      this._prefix = idParts[1];
     }
+
 
     // set old controller if not present
     if (customDocumentFields?.controller) {
@@ -420,7 +439,7 @@ export class Did extends Base {
       // if the read public metadata key and the old_document controller match, then you are able to change the controller
 
       let controller = customDocumentFields?.controller;
-      controller = `did:${prefix}:${controller}`;
+      controller = `did:${this._prefix}:${controller}`;
 
       const regex = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/; // regex would need to change if we update to use ethereum keyrings as well
       if(!regex.test(controller)) {
@@ -429,13 +448,21 @@ export class Did extends Base {
       new_document.setController(controller);
     }
     else  {
-      new_document.setController(oldDocument.controller);
+      // if the prefix has been changed update the controller to reflect it
+      const old_controller = oldDocument.controller;
+      const controllerParts = old_controller.split(':');
+      if (this._prefix !== controllerParts[1]) {
+        new_document.setController(`did:${this._prefix}:${controllerParts[2]}`);
+      }
+      else {
+        new_document.setController(oldDocument.controller);
+      }
     }
 
     if (customDocumentFields?.verifications) {
       customDocumentFields.verifications.forEach((verification) => {
         let keyNum = 1; 
-        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), prefix, keyNum);
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), this._prefix as string, keyNum);
         new_document.addVerificationmethods(verificationMethod);
         new_document.addAuthentications(verificationId);
         keyNum += 1;
@@ -457,5 +484,20 @@ export class Did extends Base {
 
     const bytes = new_document.serializeBinary();
     return u8aToHex(bytes);
+  }
+
+  private _checkSeed(seed: string){
+    const words = seed.trim().split(/\s+/);
+
+    // Check if the length is either 12 or 24
+    if (words.length !== 12 && words.length !== 24) {
+      throw new SeedError('Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.');
+    }
+  }
+
+  private _checkAddress(accountAddress: Address) {
+    if (!accountAddress) throw new AddressError('Address is required');
+    const regex = /^[1-9A-HJ-NP-Za-km-z]{48}$/; // regex used to check address format
+    if(!regex.test(accountAddress as string)) throw new AddressError('Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.');
   }
 }
