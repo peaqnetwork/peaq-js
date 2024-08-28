@@ -12,14 +12,14 @@ declare module 'peaq-did-proto-js' {
     getId(): string;
     setId(value: string): this;
 
-    getType(): VerificationType;
-    setType(value: VerificationType): this;
+    getType(): string;
+    setType(value: string): this;
 
     getController(): string;
     setController(value: string): this;
 
-    getPublickeymultibase(): string;
-    setPublickeymultibase(value: string): this;
+    getPublicKeyMultibase(): string;
+    setPublicKeyMultibase(value: string): this;
 
     serializeBinary(): Uint8Array;
     static deserializeBinary(bytes: Uint8Array): VerificationMethod;
@@ -32,8 +32,8 @@ declare module 'peaq-did-proto-js' {
 
     constructor(data?: any);
 
-    getType(): VerificationType;
-    setType(value: VerificationType): this;
+    getType(): string;
+    setType(value: string): this;
 
     getIssuer(): string;
     setIssuer(value: string): this;
@@ -58,8 +58,9 @@ declare module 'peaq-did-proto-js' {
     getType(): string;
     setType(value: string): this;
 
-    getServiceendpoint(): string;
-    setServiceendpoint(value: string): this;
+    getServiceEndpoint(): string;
+    setServiceEndpoint(value: string): this;
+
 
     getData(): string;
     setData(value: string): this;
@@ -68,7 +69,6 @@ declare module 'peaq-did-proto-js' {
     static deserializeBinary(bytes: Uint8Array): Service;
     static deserializeBinaryFromReader(message: Service, reader: any): Service;
     toObject(includeInstance?: boolean): object;
-
   }
 
   export class Document {
@@ -81,25 +81,25 @@ declare module 'peaq-did-proto-js' {
     getController(): string;
     setController(value: string): this;
 
-    getVerificationmethodsList(): VerificationMethod[];
-    setVerificationmethodsList(value: VerificationMethod[]): this;
-    addVerificationmethods(value?: VerificationMethod, index?: number): VerificationMethod;
-    clearVerificationmethodsList(): this;
+    getVerificationMethods(): VerificationMethod[];
+    setVerificationMethods(value: VerificationMethod[]): this;
+    addVerificationMethods(value?: VerificationMethod, index?: number): VerificationMethod;
+    clearVerificationMethods(): this;
 
     getSignature(): Signature | undefined;
     setSignature(value?: Signature): this;
     hasSignature(): boolean;
     clearSignature(): this;
 
-    getServicesList(): Service[];
-    setServicesList(value: Service[]): this;
+    getServices(): Service[];
+    setServices(value: Service[]): this;
     addServices(value?: Service, index?: number): Service;
-    clearServicesList(): this;
+    clearServices(): this;
 
-    getAuthenticationsList(): string[];
-    setAuthenticationsList(value: string[]): this;
+    getAuthentications(): string[];
+    setAuthentications(value: string[]): this;
     addAuthentications(value: string, index?: number): this;
-    clearAuthenticationsList(): this;
+    clearAuthentications(): this;
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): object;

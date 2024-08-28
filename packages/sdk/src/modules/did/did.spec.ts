@@ -1,44 +1,227 @@
+import dotenv from 'dotenv';
 import * as peaqDidProto from 'peaq-did-proto-js';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
-import type { ReadDidResponse } from '../../types';
+import { hexToU8a } from '@polkadot/util';
+import type { DidDocument, ReadDidResponse } from '../../types';
 import { CustomDocumentFields, Did } from './index';
 import { unsubscribeRuntimeVersion } from '../../utils';
-import { CreateDidError, ReadDidError, UpdateDidError} from '../../utils/errors';
+import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
 
-const BASE_URL = process.env['NX_NETWORK_BASE_URL'] as string;
-const SEED = process.env['SEED'] as string;
-
-// TODO 
-// 1. add erro checks in the remove test
-
-
+dotenv.config(); // Load variables from .env file
 
 /**
+ * Global variables used to initialize the BASE_URL, and seed phrases that are used to create wallets.
+ * 
+ * Address error used multiple times, so it is initialized here.
+ */
+const BASE_URL = process.env['BASE_URL'] as string;
+const SEED = process.env['SEED'] as string;
+const SEED2 = process.env['SEED2'] as string;
+
+const address_error = `AddressError: Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
+        SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
+        40 hexadecimal characters (0-9, a-f, A-F) with no characters omitted.`
+/**
  * Tests functionality in the sdk for DID operations. Before all tests, creates a new instance of
- * Alice Keyring to execute the operations. Creates, Reads, Updates, and Removes DID by calling
+ * user Keyring to execute the operations. Creates, Reads, Updates, and Removes DID by calling
  * the peaq pallets to perform the operation as defined in did/index.tx and base/index.ts.
  * 
+ * This flow ensures that a user needs less than .2 token to execute all tests and funds will be returned back.
  */
 describe('Did', () => {
   let api: ApiPromise;
   let keyring: Keyring;
-  let alice: KeyringPair;
+  let keyring2: Keyring;
+  let user: KeyringPair;
+  let user2: KeyringPair;
   let did: Did;
+  let did2: Did;
 
   beforeAll(async () => {
     const provider = new WsProvider(BASE_URL);
     api = await ApiPromise.create({ provider, noInitWarn: true });
     keyring = new Keyring({ type: 'sr25519' });
-    alice = keyring.addFromUri(SEED);
-    did = new Did(api, { pair: alice });
+    keyring2 = new Keyring({ type: 'sr25519' });
+    user = keyring.addFromUri(SEED);
+    user2 = keyring2.addFromUri(SEED2);
+    did = new Did(api, { pair: user });
+    did2 = new Did(api, { pair: user2 });
   }, 40000);
 
   afterAll(async () => {
     await unsubscribeRuntimeVersion(api);
     await api?.disconnect();
   });
+
+  /**
+   * Tests the generation of a DID hash value, without calling blockchain extrinsics. Checks for expected errors.
+   */
+    describe('generate()', () => {
+      // tests error when an empty name is set
+      it('generate did with no name set', async () => {
+        await expect(did.generate({name: ''}))
+          .rejects.toThrowError(new CreateDidError('NameError: Name is required when creating a DID.'));
+      });
+
+      it('generate did with an incorrect Substrate address', async () => {
+        const new_did  = 'did-test-1';
+        const address1 = 'Incorrect Address Format';
+        const address2 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pgg'; // address has an additional char at the end (49 chars)
+        const address3 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12P';   // address has an additional char at the end (47 chars)
+        const address4 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12P0';  // address that is proper length but has 0 included
+        const address5 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PO';  // address that is proper length but has O included
+        const address6 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PI';  // address that is proper length but has I included
+        const address7 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pl';  // address that is proper length but has I included
+  
+        await expect(did.generate({name: new_did, address: address1}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address2}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address3}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address4}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address5}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address6}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address7}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+      });
+
+      it('generate did with an incorrect Ethereum address', async () => {
+        const new_did  = 'did-test-1';
+        const address1 = 'Incorrect Address Format';
+        const address2 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641CC';       // address has an additional char at the end (43 chars)
+        const address3 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641';         // address has an one less char at the end (41 chars)
+        const address4 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641Z';        // address is proper length but has invalid hex value of 'Z'
+
+        await expect(did.generate({name: new_did, address: address1}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address2}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address3}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+        await expect(did.generate({name: new_did, address: address4}))
+          .rejects.toThrowError(new CreateDidError(address_error));
+      });
+  
+      // throws an error when a seed phrase is not 12 or 24 words long
+      it('generate did with an incorrect seed', async () => {
+        const new_did  = 'did-test-1';
+        await expect(did.generate({name: new_did, seed: 'My incorrect seed phrase'}))
+          .rejects.toThrowError(new CreateDidError('SeedError: Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.'));
+      });
+
+      it('generate did', async () => {
+        const new_did  = 'did-test-1';
+        const result = await did.generate({name: new_did});
+        const did_hash = result.value;
+        // check did hash return value: starts with '0x' and only contains hexadecimal values
+        expect(did_hash.startsWith('0x')).toBe(true);
+        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+      });
+
+      it('generate did Substrate address', async () => {
+        const new_did  = 'did-test-1';
+        const result = await did.generate({name: new_did, address: user.address});
+        const did_hash = result.value;
+        // check did hash return value: starts with '0x' and only contains hexadecimal values
+        expect(did_hash.startsWith('0x')).toBe(true);
+        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+
+        // convert the did hash into a readable did document to check the default values
+        const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
+        const did_document = document.toObject() as DidDocument;
+
+        await readDocument(did_document, user, null, user.address);
+      });
+
+      it('generate did Ethereum address', async () => {
+        const new_did  = 'did-test-1';
+        const addressETH = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641C';
+        const result = await did.generate({name: new_did, address: addressETH, customDocumentFields: {controller: addressETH}});
+        const did_hash = result.value;
+        // check did hash return value: starts with '0x' and only contains hexadecimal values
+        expect(did_hash.startsWith('0x')).toBe(true);
+        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+
+        // convert the did hash into a readable did document to check the default values
+        const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
+        const did_document = document.toObject() as DidDocument;
+
+        await readDocument(did_document, user, null, addressETH);
+      });
+
+      it('generate did Substrate address with a custom prefix, controller & document fields', async () => {
+        const new_did  = 'did-test-1';
+        const customFields: CustomDocumentFields = {
+          prefix: 'custom_name',
+          controller: `${user2.address}`,
+          verifications: [{
+            type: "ED25519VERIFICATIONKEY2020"
+          }],
+          signature: {
+            type: "ED25519VERIFICATIONKEY2020",
+            issuer: '123',
+            hash: '0x123'
+          },
+          services: [{
+            id: 'machine-identifier-1',
+            type: 'Machine-1',
+            serviceEndpoint: 'http://localhost:8080/ipfs/'
+          }]
+      }
+
+        const result = await did.generate({name: new_did, customDocumentFields: customFields});
+        const did_hash = result.value;
+        // check did hash return value: starts with '0x' and only contains hexadecimal values
+        expect(did_hash.startsWith('0x')).toBe(true);
+        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+
+        // convert the did hash into a readable did document to check the default values
+        const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
+        const did_document = document.toObject() as DidDocument;
+
+        await readDocument(did_document, user, customFields, user.address);
+      });
+
+      it('generate did Ethereum address with a custom prefix, controller & document fields', async () => {
+        const addressETH = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641C';
+        const new_did  = 'did-test-1';
+        const customFields: CustomDocumentFields = {
+          prefix: 'custom_name',
+          controller: addressETH,
+          verifications: [{
+            type: "ED25519VERIFICATIONKEY2020"
+          }],
+          signature: {
+            type: "ED25519VERIFICATIONKEY2020",
+            issuer: '123',
+            hash: '0x123'
+          },
+          services: [{
+            id: 'machine-identifier-1',
+            type: 'Machine-1',
+            serviceEndpoint: 'http://localhost:8080/ipfs/'
+          }]
+      }
+
+        const result = await did.generate({name: new_did, address: addressETH, customDocumentFields: customFields});
+        const did_hash = result.value;
+        // check did hash return value: starts with '0x' and only contains hexadecimal values
+        expect(did_hash.startsWith('0x')).toBe(true);
+        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+
+        // convert the did hash into a readable did document to check the default values
+        const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
+        const did_document = document.toObject() as DidDocument;
+
+        await readDocument(did_document, user, customFields, addressETH);
+      });
+    });
 
   /**
    * Test the creation of DID using the sdk. Executes a pre-defined flow in createReadRemove()
@@ -64,19 +247,19 @@ describe('Did', () => {
       const address7 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pl';  // address that is proper length but has I included
 
       await expect(did.create({name: new_did, address: address1}))
-        .rejects.toThrowError(new CreateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new CreateDidError(address_error));
       await expect(did.create({name: new_did, address: address2}))
-        .rejects.toThrowError(new CreateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new CreateDidError(address_error));
       await expect(did.create({name: new_did, address: address3}))
-        .rejects.toThrowError(new CreateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new CreateDidError(address_error));
       await expect(did.create({name: new_did, address: address4}))
-        .rejects.toThrowError(new CreateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new CreateDidError(address_error));
       await expect(did.create({name: new_did, address: address5}))
-        .rejects.toThrowError(new CreateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new CreateDidError(address_error));
       await expect(did.create({name: new_did, address: address6}))
-        .rejects.toThrowError(new CreateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new CreateDidError(address_error));
       await expect(did.create({name: new_did, address: address7}))
-        .rejects.toThrowError(new CreateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new CreateDidError(address_error));
     });
 
     // throws an error when a seed phrase is not 12 or 24 words long
@@ -89,25 +272,25 @@ describe('Did', () => {
     // creates, reads, and removes to align with expected
     it('create single did with no custom fields', async () => {
       const new_did  = 'did-test-1';
-      await createReadRemove(new_did, did, alice, null, null, null);
+      await createReadRemove(new_did, did, user, null, null, null);
     }, 80000);
 
     // creates, reads, and removes to align with expected
     it('create single did with proper address initialization', async () => {
       const new_did  = 'did-test-1';
       const address = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pg';
-      await createReadRemove(new_did, did, alice, null, null, address);
+      await createReadRemove(new_did, did, user, null, null, address);
     }, 80000);
 
     it('create single did with custom seed', async () => {
       const new_did  = 'did-test-1';
       const seed = SEED;
-      await createReadRemove(new_did, did, alice, null, seed, null);
+      await createReadRemove(new_did, did, user, null, seed, null);
     }, 80000);
 
     it('create did by setting address manually based on keyring', async () => {
       const new_did  = 'did-test-1';
-      await createReadRemove(new_did, did, alice, null, null, alice.address);
+      await createReadRemove(new_did, did, user, null, null, user.address);
     }, 80000);
 
     it('add a custom prefix when creating a did', async () => {
@@ -116,7 +299,7 @@ describe('Did', () => {
       const customFields: CustomDocumentFields = {
         prefix: prefix
       }
-      await createReadRemove(new_did, did, alice, customFields, null, alice.address);
+      await createReadRemove(new_did, did, user, customFields, null, user.address);
     }, 100000);
 
     // try to create a did of the same name -> expect error
@@ -129,7 +312,7 @@ describe('Did', () => {
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 120000);
 
@@ -149,8 +332,8 @@ describe('Did', () => {
           data: '0x12354terfsrew42'
         }]
       }
-
-      await createReadRemove(new_did, did, alice, customFields, null, null);
+      // test
+      await createReadRemove(new_did, did, user, customFields, null, null);
     }, 80000);
 
     it('create custom did without the necessary service fields', async () => {
@@ -174,26 +357,27 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+          type: "ED25519VERIFICATIONKEY2020"
         }],
         signature: {
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020,
+          type: "ED25519VERIFICATIONKEY2020",
           issuer: '123',
           hash: '0x123'
         }
       }
-      await createReadRemove(new_did, did, alice, customFields, null, null);
+      await createReadRemove(new_did, did, user, customFields, null, null);
     }, 80000);
 
     // verification, signature, and service custom fields
-    it('create custom did with verification and signature custom fields', async () => {
+    it('create custom did with verification (ed), signature, & service custom fields', async () => {
       const new_did  = 'did-test-1';
+
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+          type: "ED25519VERIFICATIONKEY2020"
         }],
         signature: {
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020,
+          type: "ED25519VERIFICATIONKEY2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -203,7 +387,28 @@ describe('Did', () => {
           serviceEndpoint: 'http://localhost:8080/ipfs/'
         }]
       }
-      await createReadRemove(new_did, did, alice, customFields, null, null);
+      await createReadRemove(new_did, did, user, customFields, null, null);
+    }, 80000);
+
+    it('create custom did with verification (sr), signature, & service custom fields', async () => {
+      const new_did  = 'did-test-1';
+
+      const customFields: CustomDocumentFields = {
+        verifications: [{
+          type: "SR25519VERIFICATIONKEY2020"
+        }],
+        signature: {
+          type: "SR25519VERIFICATIONKEY2020",
+          issuer: '123',
+          hash: '0x123'
+        },
+        services: [{
+          id: 'machine-identifier-1',
+          type: 'Machine-1',
+          serviceEndpoint: 'http://localhost:8080/ipfs/'
+        }]
+      }
+      await createReadRemove(new_did, did, user, customFields, null, null);
     }, 80000);
   });
 
@@ -215,13 +420,13 @@ describe('Did', () => {
   describe('read()', () => {
     it('should throw an error when name is not provided', async () => {
       await expect(
-        did.read({ address: alice.address, name: '' })
+        did.read({ address: user.address, name: '' })
       ).rejects.toThrow('Name is required');
     });
 
     it('should return null when DID is not found', async () => {
       const name = '1';
-      await expect(did.read({ address: alice.address, name })).resolves.toBeNull();
+      await expect(did.read({ address: user.address, name })).resolves.toBeNull();
     });
     it('read did with an incorrect address', async () => {
       const new_did  = 'did-test-1';
@@ -234,26 +439,26 @@ describe('Did', () => {
       const address7 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pl';  // address that is proper length but has I included
 
       await expect(did.read({name: new_did, address: address1}))
-        .rejects.toThrowError(new ReadDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new ReadDidError(address_error));
       await expect(did.read({name: new_did, address: address2}))
-        .rejects.toThrowError(new ReadDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new ReadDidError(address_error));
       await expect(did.read({name: new_did, address: address3}))
-        .rejects.toThrowError(new ReadDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new ReadDidError(address_error));
       await expect(did.read({name: new_did, address: address4}))
-        .rejects.toThrowError(new ReadDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new ReadDidError(address_error));
       await expect(did.read({name: new_did, address: address5}))
-        .rejects.toThrowError(new ReadDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new ReadDidError(address_error));
       await expect(did.read({name: new_did, address: address6}))
-        .rejects.toThrowError(new ReadDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new ReadDidError(address_error));
       await expect(did.read({name: new_did, address: address7}))
-        .rejects.toThrowError(new ReadDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new ReadDidError(address_error));
     });
 
-    it('read did with address and proper name passed', async () => {
+    it('read a known did with address and proper name passed', async () => {
       const known_did  = 'did-test';
-      const read_did = await did.read({name: known_did, address: alice.address}) ;
+      const read_did = await did.read({name: known_did, address: user.address}) ;
       expect(read_did).toBeDefined();
-      await readDid(read_did as ReadDidResponse, known_did, alice, null);
+      await readDid(read_did as ReadDidResponse, known_did, user, null);
     })
   });
 
@@ -300,44 +505,71 @@ describe('Did', () => {
       }]}
 
       await expect(did.update({name: new_did, address: address1, customDocumentFields: customFields}))
-        .rejects.toThrowError(new UpdateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new UpdateDidError(address_error));
       await expect(did.update({name: new_did, address: address2, customDocumentFields: customFields}))
-        .rejects.toThrowError(new UpdateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new UpdateDidError(address_error));
       await expect(did.update({name: new_did, address: address3, customDocumentFields: customFields}))
-        .rejects.toThrowError(new UpdateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new UpdateDidError(address_error));
       await expect(did.update({name: new_did, address: address4, customDocumentFields: customFields}))
-        .rejects.toThrowError(new UpdateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new UpdateDidError(address_error));
       await expect(did.update({name: new_did, address: address5, customDocumentFields: customFields}))
-        .rejects.toThrowError(new UpdateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new UpdateDidError(address_error));
       await expect(did.update({name: new_did, address: address6, customDocumentFields: customFields}))
-        .rejects.toThrowError(new UpdateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new UpdateDidError(address_error));
       await expect(did.update({name: new_did, address: address7, customDocumentFields: customFields}))
-        .rejects.toThrowError(new UpdateDidError('AddressError: Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.'));
+        .rejects.toThrowError(new UpdateDidError(address_error));
     });
     it('try to update attribute that does not exist', async() => {
       const new_did  = 'did-test-1';
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+          type: "ED25519VERIFICATIONKEY2020"
         }],
       }
       await expect(did.update({
         name: new_did,
         customDocumentFields: customFields
-      })).rejects.toThrowError(new UpdateDidError(`DidNotFoundError: DID Document of name ${new_did} for the account address ${alice.address} was not found.`));
+      })).rejects.toThrowError(new UpdateDidError(`DidNotFoundError: DID Document of name ${new_did} for the account address ${user.address} was not found.`));
 
     }, 40000);
+
+    it('try to update a did from an address the owner does not own', async() => {
+      const new_did = 'did-test-1';
+      // create a new did for user's did
+      await did.create({name: new_did});
+  
+      const customFields: CustomDocumentFields = {
+        verifications: [{
+          type: "SR25519VERIFICATIONKEY2020"
+        }]
+      }
+
+      // use the did2 instance of sdk which is created using the user2 keyring to try to update a did they do not own. Expects to throw an error.
+      await expect(did2.update({
+        name: new_did,
+        address: user.address,
+        customDocumentFields: customFields
+      })).rejects.toThrowError(new UpdateDidError("Error: AttributeAuthorizationFailed for peaqDid."));
+  
+      // remove did for cleanup
+      const removeResult = await did.remove({name: new_did});
+      expect(removeResult?.block_hash).toBeDefined();
+      expect(typeof removeResult?.unsubscribe).toBe('function');
+
+    }, 80000);
     
     it('should update a DID', async () => {
       const new_did  = 'did-test-1';
       await did.create({name: new_did});
 
       const customFields: CustomDocumentFields = {
+        prefix: 'custom_name',
+        controller: `${user2.address}`,
         verifications: [{
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+          type: "ED25519VERIFICATIONKEY2020"
         }],
         signature: {
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020,
+          type: "ED25519VERIFICATIONKEY2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -352,16 +584,16 @@ describe('Did', () => {
         name: new_did,
         customDocumentFields: customFields
       });
-      expect(result).toBeDefined();
 
-      const result2 = await did.read({ address: alice.address, name: new_did });
+      expect(result).toBeDefined();
+      const result2 = await did.read({ address: user.address, name: new_did });
       expect(result2).toBeDefined();
 
-      await readDid(result2 as ReadDidResponse, new_did, alice, customFields);
+      await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 100000);
 
@@ -372,10 +604,10 @@ describe('Did', () => {
       const customFields: CustomDocumentFields = {
         prefix: 'custom_name',
         verifications: [{
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+          type: "ED25519VERIFICATIONKEY2020"
         }],
         signature: {
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020,
+          type: "ED25519VERIFICATIONKEY2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -391,14 +623,14 @@ describe('Did', () => {
         customDocumentFields: customFields
       });
       expect(result).toBeDefined();
-      const result2 = await did.read({ address: alice.address, name: new_did });
+      const result2 = await did.read({ address: user.address, name: new_did });
       expect(result2).toBeDefined();
 
-      await readDid(result2 as ReadDidResponse, new_did, alice, customFields);
+      await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 100000);
 
@@ -415,29 +647,29 @@ describe('Did', () => {
       // add verification, but do not change the prefix
       const customFields2: CustomDocumentFields = {
         verifications: [{
-          type: 1
+          type: "SR25519VERIFICATIONKEY2020"
         }]
       }
       // add verification method. Should use the previously set prefix in the create function.
       const result = await did.update({name: new_did, customDocumentFields: customFields2});
 
       expect(result).toBeDefined();
-      const result2 = await did.read({ address: alice.address, name: new_did });
+      const result2 = await did.read({ address: user.address, name: new_did });
       expect(result2).toBeDefined();
 
       // custom fields to check which includes prefix and verification
       const customFields3: CustomDocumentFields = {
         prefix: prefix,
         verifications: [{
-          type: 1
+          type: "SR25519VERIFICATIONKEY2020"
         }]
       }
 
-      await readDid(result2 as ReadDidResponse, new_did, alice, customFields3);
+      await readDid(result2 as ReadDidResponse, new_did, user, customFields3);
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 100000);
 
@@ -454,22 +686,22 @@ describe('Did', () => {
       const customFields2: CustomDocumentFields = {
         prefix: 'new_prefix',
         verifications: [{
-          type: 1
+          type: "SR25519VERIFICATIONKEY2020"
         }]
       }
       // add verification method. Uses the new set prefix.
       const result = await did.update({name: new_did, customDocumentFields: customFields2});
 
       expect(result).toBeDefined();
-      const result2 = await did.read({ address: alice.address, name: new_did });
+      const result2 = await did.read({ address: user.address, name: new_did });
       expect(result2).toBeDefined();
 
-      // use the previously set customField that will overwrite the previous prefix
-      await readDid(result2 as ReadDidResponse, new_did, alice, customFields2);
+      // use the previously set customFields2 that will overwrite the previous prefix
+      await readDid(result2 as ReadDidResponse, new_did, user, customFields2);
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 100000);
 
@@ -479,10 +711,10 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+          type: "ED25519VERIFICATIONKEY2020"
         }],
         signature: {
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020,
+          type: "ED25519VERIFICATIONKEY2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -495,19 +727,19 @@ describe('Did', () => {
       
       const result = await did.update({
         name: new_did,
-        address: alice.address,
+        address: user.address,
         customDocumentFields: customFields
       });
       expect(result).toBeDefined();
 
-      const result2 = await did.read({ address: alice.address, name: new_did });
+      const result2 = await did.read({ address: user.address, name: new_did });
       expect(result2).toBeDefined();
 
-      await readDid(result2 as ReadDidResponse, new_did, alice, customFields);
+      await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 100000);
 
@@ -517,10 +749,10 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020
+          type: "ED25519VERIFICATIONKEY2020"
         }],
         signature: {
-          type: peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020,
+          type: "ED25519VERIFICATIONKEY2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -538,14 +770,14 @@ describe('Did', () => {
       });
       expect(result).toBeDefined();
 
-      const result2 = await did.read({ address: alice.address, name: new_did });
+      const result2 = await did.read({ address: user.address, name: new_did });
       expect(result2).toBeDefined();
 
-      await readDid(result2 as ReadDidResponse, new_did, alice, customFields);
+      await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 100000);
     });
@@ -561,34 +793,76 @@ describe('Did', () => {
       const new_did = 'did-test-1';
 
       await expect(did.remove({name: new_did}))
-        .rejects.toThrow(`Remove DID Error: DID Document of name ${new_did} for the account address ${alice.address} was not found`);
+        .rejects.toThrowError(new RemoveDidError(`DidNotFoundError: DID Document of name ${new_did} for the account address ${user.address} was not found.`));
 
     }, 40000);
+
+    // throws an error when a seed phrase is not 12 or 24 words long
+    it('create did with an incorrect seed', async () => {
+      const new_did  = 'did-test-1';
+      await expect(did.remove({name: new_did, seed: 'My incorrect seed phrase'}))
+        .rejects.toThrowError(new RemoveDidError('SeedError: Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.'));
+    });
+
+    it('remove did with an incorrect address', async () => {
+      const new_did  = 'did-test-1';
+      const address1 = 'Incorrect Address Format';
+      const address2 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pgg'; // address has an additional char at the end (49 chars)
+      const address3 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12P';   // address has an additional char at the end (47 chars)
+      const address4 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12P0';  // address that is proper length but has 0 included
+      const address5 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PO';  // address that is proper length but has O included
+      const address6 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PI';  // address that is proper length but has I included
+      const address7 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pl';  // address that is proper length but has I included
+
+      await expect(did.remove({name: new_did, address: address1}))
+        .rejects.toThrowError(new RemoveDidError(address_error));
+      await expect(did.remove({name: new_did, address: address2}))
+        .rejects.toThrowError(new RemoveDidError(address_error));
+      await expect(did.remove({name: new_did, address: address3}))
+        .rejects.toThrowError(new RemoveDidError(address_error));
+      await expect(did.remove({name: new_did, address: address4}))
+        .rejects.toThrowError(new RemoveDidError(address_error));
+      await expect(did.remove({name: new_did, address: address5}))
+        .rejects.toThrowError(new RemoveDidError(address_error));
+      await expect(did.remove({name: new_did, address: address6}))
+        .rejects.toThrowError(new RemoveDidError(address_error));
+      await expect(did.remove({name: new_did, address: address7}))
+        .rejects.toThrowError(new RemoveDidError(address_error));
+    });
 
     it('create & remove a DID', async () => {
       const new_did = 'did-test-1';
       await did.create({name: new_did});
       const result = await did.remove({name: new_did});
 
-      expect(result?.hash).toBeDefined();
+      expect(result?.block_hash).toBeDefined();
       expect(typeof result?.unsubscribe).toBe('function');
     }, 70000);
-    it('try to remove DID they do not own', async () =>{
+
+    it('try to remove DID they does not exist', async () =>{
       const new_did = 'did-test-1';
-      await did.create({name: new_did}); // create did using Alice key
+      await did.create({name: new_did}); // create did using user key
 
-      // create new sdk instance based on Bob keyring
-      const keyring2 = new Keyring({ type: 'sr25519' });
-      const bob = keyring2.addFromUri('//Bob');
-      const did_bob = new Did(api, { pair: bob });
-
-      await expect(did_bob.remove({name: new_did}))
-        .rejects.toThrow(`Remove DID Error: DID Document of name ${new_did} for the account address ${bob.address} was not found`);
+      await expect(did2.remove({name: new_did}))
+        .rejects.toThrowError(new ReadDidError(`DidNotFoundError: DID Document of name ${new_did} for the account address ${user2.address} was not found.`));
 
 
       // remove did for cleanup
       const removeResult = await did.remove({name: new_did});
-      expect(removeResult?.hash).toBeDefined();
+      expect(removeResult?.block_hash).toBeDefined();
+      expect(typeof removeResult?.unsubscribe).toBe('function');
+    }, 120000);
+
+    it('try to remove DID they do not own', async () =>{
+      const new_did = 'did-test-1';
+      await did.create({name: new_did}); // create did using user key
+
+      await expect(did2.remove({name: new_did, address: user.address}))
+        .rejects.toThrowError(new UpdateDidError("Error: AttributeAuthorizationFailed for peaqDid."));
+
+      // remove did for cleanup
+      const removeResult = await did.remove({name: new_did});
+      expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 120000);
   });
@@ -603,14 +877,14 @@ describe('Did', () => {
  * 
  * @param new_did - The name of the did to be created/read from
  * @param did - Object representation of the sdk instance
- * @param alice - KeyringPair object that contains the address from which the sdk was initialized with
+ * @param user - KeyringPair object that contains the address from which the sdk was initialized with
  * @param customFields - The customizable fields the user manually set to be checked
  * @param seed - The seed field that can be set when creating the did
  * @param address - Address to be manually set when creating did
  * @returns - None
  */
 
-async function createReadRemove(new_did: string, did: Did, alice: KeyringPair, customFields: CustomDocumentFields | null, seed: string | null, address: string | null) {
+async function createReadRemove(new_did: string, did: Did, user: KeyringPair, customFields: CustomDocumentFields | null, seed: string | null, address: string | null) {
   const result = await did.create({
     name: new_did,
     ...(address !== null && {address: address}),
@@ -618,7 +892,7 @@ async function createReadRemove(new_did: string, did: Did, alice: KeyringPair, c
     ...(seed !== null && { seed: seed }), // Only add `seed` if it is not null
   });
 
-  expect(result.hash).toBeDefined();
+  expect(result.block_hash).toBeDefined();
   expect(typeof result.unsubscribe).toBe('function');
 
   // read newly created did
@@ -634,13 +908,12 @@ async function createReadRemove(new_did: string, did: Did, alice: KeyringPair, c
   expect(read_did).toBeDefined();
 
   // test specific did document information
-  await readDid(read_did as ReadDidResponse, new_did, alice, customFields || null);
+  await readDid(read_did as ReadDidResponse, new_did, user, customFields || null);
 
   // remove did for cleanup
   const removeResult = await did.remove({name: new_did});
-  expect(removeResult?.hash).toBeDefined();
+  expect(removeResult?.block_hash).toBeDefined();
   expect(typeof removeResult?.unsubscribe).toBe('function');
-
 }
 
 /**
@@ -650,11 +923,11 @@ async function createReadRemove(new_did: string, did: Did, alice: KeyringPair, c
  * 
  * @param read_did - Returned object from the read sdk function that contains the did document to be validated
  * @param new_did - The name of the did to be created/read from
- * @param alice - KeyringPair object that contains the address from which the sdk was initialized with
+ * @param user - KeyringPair object that contains the address from which the sdk was initialized with
  * @param customFields - The customizable fields the user manually set to be checked
  * @returns - None
  */
-async function readDid(read_did: ReadDidResponse, new_did: string, alice: KeyringPair, customFields: CustomDocumentFields | null) {
+async function readDid(read_did: ReadDidResponse, new_did: string, user: KeyringPair, customFields: CustomDocumentFields | null) {
   expect(read_did).toBeDefined();
   expect(read_did?.name).toBe(new_did);
 
@@ -673,78 +946,85 @@ async function readDid(read_did: ReadDidResponse, new_did: string, alice: Keyrin
   expect(validityPattern.test(read_did?.validity as string)).toBe(true);
   expect(createdPattern.test(read_did?.created as string)).toBe(true);
 
-  // test common did document default values
   expect(read_did?.document).toBeDefined();
-  const didDocument = read_did?.document;
-  if (customFields?.prefix){
-    expect(didDocument?.id).toBe(`did:${customFields?.prefix}:${alice.address}`);
-    expect(didDocument?.controller).toBe(`did:${customFields?.prefix}:${alice.address}`);
+  const document = read_did?.document;
+  const address = user.address;
+  // tests did document values
+  await readDocument(document, user, customFields, address);
+}
+
+async function readDocument(document: DidDocument, user: KeyringPair, customFields: CustomDocumentFields | null, address: string){
+  const didDocument = document;
+  if (customFields?.prefix) {
+    expect(didDocument?.id).toBe(`did:${customFields?.prefix}:${address}`);
+    if (customFields?.controller) { 
+      expect(didDocument?.controller).toBe(`did:${customFields?.prefix}:${customFields?.controller}`);
+    }
+    else {
+      expect(didDocument?.id).toBe(`did:${customFields?.prefix}:${address}`);
+    }
   }
   else {
-    expect(didDocument?.id).toBe(`did:peaq:${alice.address}`);
-    expect(didDocument?.controller).toBe(`did:peaq:${alice.address}`);
+    expect(didDocument?.id).toBe(`did:peaq:${address}`);
+    expect(didDocument?.controller).toBe(`did:peaq:${address}`);
   }
 
-
-
   if (customFields == null){ // test did document default empty values
-    expect(didDocument?.verificationmethodsList).toEqual([]);
+    expect(didDocument?.verificationMethods).toEqual([]);
     expect(didDocument?.signature).toBeUndefined(); // have undefined here, do we want empty list like others?
-    expect(didDocument?.servicesList).toEqual([]);
-    expect(didDocument?.authenticationsList).toEqual([]);
+    expect(didDocument?.services).toEqual([]);
+    expect(didDocument?.authentications).toEqual([]);
   }
   else { // test custom values if not default by looping thru the read did document to check against the expected set customFields
 
     // Iterate through verifications
-    if (didDocument.verificationmethodsList) {
-      didDocument.verificationmethodsList.forEach(verification => {
+    if (didDocument.verificationMethods) {
+      didDocument.verificationMethods.forEach(verification => {
         customFields.verifications?.forEach(setVerification => {
-          const pattern = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/;
-          expect(pattern.test(verification.id as string)).toBe(true);
+          // test verification id
+          const patternSS58 = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}#keys-[\d]$/;
+          const patternETH = /^did:[^:]+:0x[a-fA-F0-9]{40}#keys-[\d]$/;
+          expect(patternSS58.test(verification.id as string) || patternETH.test(verification.id as string)).toBe(true);
+          // test verification type
           expect(verification.type).toEqual(setVerification.type);
-          if (customFields?.prefix){
-          expect(verification.controller).toEqual(`did:${customFields?.prefix}:${alice.address}`);
+
+          // test verification prefix and controller
+          if (customFields?.prefix && customFields?.controller){
+            expect(verification.controller).toEqual(`did:${customFields?.prefix}:${customFields?.controller}`);
           }
-          else{
-            expect(verification.controller).toEqual(`did:peaq:${alice.address}`);
+          else if (customFields?.prefix && !customFields?.controller){
+            expect(verification.controller).toEqual(`did:${customFields?.prefix}:${address}`);
           }
-          
-          // error here with proto doc
-          // expect(verification.publicKeyMultibase).toEqual(`z${alice.address}`);
+          else {
+            expect(verification.controller).toEqual(`did:peaq:${address}`);
+          }
+          // test verification of the proper publicKeyMultibase pattern
+          const multibase_pattern = /^[a-fA-F0-9]{64}$/;
+          const multibase_pattern2 = /^[a-fA-F0-9]{40}$/;
+          expect(multibase_pattern.test(verification.publicKeyMultibase as string) || multibase_pattern2.test(verification.publicKeyMultibase as string)).toBe(true);
         });
       });
     }
 
-    // Iterate through signatures -> not iterating currently as there is only 1 expected signature
     if (didDocument.signature) {
         expect(didDocument.signature.type).toEqual(customFields.signature?.type);
         expect(didDocument.signature.issuer).toEqual(customFields.signature?.issuer);
         expect(didDocument.signature.hash).toEqual(customFields.signature?.hash);
-      // });
     }
 
     // Iterate through read DID services and check it matches the expected
-    if (didDocument.servicesList) {
-      didDocument.servicesList.forEach(service => {
-        // currently debugging for proper proto creation
-        //console.log("READ Service: ", service);
+    if (didDocument.services) {
+      didDocument.services.forEach(service => {
         customFields.services?.forEach(setService => { // Iterate through customFields to see if it was created correctly
-          // currently debugging for proper proto creation
-          //console.log("EXPECTED Service: ", setService);
-
-          // TODO show discrepancy between read and expected service and how I can't access the read from the serviceendpoint
-          // how to build new proto: https://github.com/peaqnetwork/peaq-network-did-proto-format
-          if ('serviceEndpoint' in setService && service.data == '') {
+          if ('serviceEndpoint' in setService && service.data == undefined) {
             expect(service.id).toEqual(setService.id);
             expect(service.type).toEqual(setService.type);
-            // error here with proto doc
-            //expect(service?.serviceEndpoint).toEqual(setService.serviceEndpoint);
+            expect(service?.serviceEndpoint).toEqual(setService.serviceEndpoint);
           }
-          if ('data' in setService && service.serviceEndpoint == '') {
+          if ('data' in setService && service.serviceEndpoint == undefined) {
             expect(service.id).toEqual(setService.id);
             expect(service.type).toEqual(setService.type);
-            // error here with proto doc
-            // expect(service.data).toEqual(setService.data);
+            expect(service.data).toEqual(setService.data);
           }
         });
       });

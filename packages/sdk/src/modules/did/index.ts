@@ -15,6 +15,7 @@ import { Base } from '../base';
 
 export interface CustomDocumentFields {
   prefix?: string,
+  controller?: string,
   verifications?: Verification[],
   signature?: Signature,
   services?: Service[];
@@ -30,13 +31,13 @@ export interface UpdateDocumentFields {
 
 type Verification = {
   id?: string;
-  type: peaqDidProto.VerificationType;
+  type: string;
   controller?: string;
   publicKeyMultibase?: string;
 }
 
 type Signature = {
-  type: peaqDidProto.VerificationType;
+  type: string;
   issuer: string;
   hash: string;
 }
@@ -46,6 +47,13 @@ type Service = {
   type: string;
   serviceEndpoint?: string;
   data?: string;
+}
+
+interface GenerateDidOptions {
+  name: string;
+  address?: Address;
+  seed?: string;
+  customDocumentFields?: CustomDocumentFields;
 }
 
 interface CreateDidOptions {
@@ -80,20 +88,24 @@ interface RemoveDidOptions {
   seed?: string;
 }
 
+interface GenerateDidResult {
+  value: string;
+}
+
 interface CreateDidResult {
-  hash: CodecHash;
+  block_hash: CodecHash;
   unsubscribe: () => void;
 }
 
 interface RemoveDidResult {
   log?: string,
-  hash: CodecHash;
+  block_hash: CodecHash;
   unsubscribe: () => void;
 }
 
 interface UpdateDidResult {
   log: string,
-  hash: CodecHash;
+  block_hash: CodecHash;
   unsubscribe: () => void;
 }
 
@@ -115,9 +127,42 @@ export class Did extends Base {
   }
 
   /**
+   * Generates a new DID hash value by creating a DID document with the proto and converting u8a to hex.
+   * 
+   * @param options - The options for generating a DID.
+   * @returns value - The hash value of the generated DID document.
+   */
+  public async generate(options: GenerateDidOptions): Promise<GenerateDidResult> {
+    try {
+
+      const { name, address = '', seed = '', customDocumentFields } = options;
+
+      if (!name) throw new NameError('Name is required when creating a DID.');
+      if (seed !== '') this._checkSeed(seed);
+      if (address !== '') this._checkAddress(address);
+
+      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const accountAddress = address || keyPair.address;
+
+      const didDocumentHash = this._generateDidDocument({
+        didAccountAddress: accountAddress,
+        didControllerAddress: keyPair.address,
+        customDocumentFields,
+      });
+
+      return {
+        value: didDocumentHash,
+      };
+    } catch (error) {
+        throw new CreateDidError(`${error}`);
+      }
+  }
+
+  /**
    * Creates a new DID by adding a new attribute to the PEAQ DID registry.
+   * 
    * @param options - The options for creating the DID.
-   * @returns A promise that resolves when the DID is created.
+   * @returns block_hash - Hash that is searchable on a block explorer to see transaction.
    */
   public async create(
     options: CreateDidOptions,
@@ -135,7 +180,7 @@ export class Did extends Base {
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
-      const didDocument = this._createDidDocument({
+      const didDocument = this._generateDidDocument({
         didAccountAddress: accountAddress,
         didControllerAddress: keyPair.address,
         customDocumentFields,
@@ -156,7 +201,7 @@ export class Did extends Base {
       });
 
       return {
-        hash: eventData[0]?.blockHash as unknown as CodecHash,
+        block_hash: eventData[0]?.blockHash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
@@ -252,7 +297,7 @@ export class Did extends Base {
 
       return {
         log: `Successfully updated the DID Document of name ${name} at address ${accountAddress}`,
-        hash: eventData[0]?.blockHash as unknown as CodecHash,
+        block_hash: eventData[0]?.blockHash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
@@ -269,14 +314,17 @@ export class Did extends Base {
 
       const { name, address = '', seed = '' } = options;
 
+      if (!name) throw new NameError('Name is required when removing a DID.');
+      if (seed !== '') this._checkSeed(seed);
+      if (address !== '') this._checkAddress(address);
+
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || this._metadata?.pair?.address;
 
-      if (!name) throw new Error('Name is required');
-      if (!accountAddress) throw new Error('Address is required');
+      if (!accountAddress) throw new AddressError('Address is required');
 
       const readDocument = await this.read({name: name, address: accountAddress});
-      if (!readDocument) throw new Error(`DID Document of name ${name} for the account address ${accountAddress} was not found.`);
+      if (!readDocument) throw new DidNotFoundError(`DID Document of name ${name} for the account address ${accountAddress} was not found.`);
 
       const attributeExtrinsic = api.tx?.['peaqDid']?.['removeAttribute'](
         accountAddress,
@@ -293,11 +341,11 @@ export class Did extends Base {
       
       return {
         log: `Successfully removed the DID of name ${name} from address ${accountAddress}`,
-        hash: eventData[0]?.blockHash as unknown as CodecHash,
+        block_hash: eventData[0]?.blockHash as unknown as CodecHash,
         unsubscribe,
       };
     } catch (error) {
-      throw new RemoveDidError(`Remove DID ${error}`);
+      throw new RemoveDidError(`${error}`);
     }
   }
 
@@ -308,31 +356,39 @@ export class Did extends Base {
     return `did:${prefix}:${address}`;
   }
 
-  private _createVerificationMethod(verification: Verification, address: Address, prefix: string, keyNum: number) {
+  private _createVerificationMethod(verification: Verification, didAccountAddress: Address, didControllerAddress: string, prefix: string, keyCounter: number) {
     const verificationMethod = new peaqDidProto.VerificationMethod();
-    const id = this._getDidId(address.toString(), prefix);
+    let id = this._getDidId(didAccountAddress.toString(), prefix);
+    id = `${id}#keys-${keyCounter}`;
+
 
     verificationMethod.setId(id);
 
-    if (verification.type !== peaqDidProto.VerificationType.ED25519VERIFICATIONKEY2020 &&
-      verification.type !== peaqDidProto.VerificationType.SR25519VERIFICATIONKEY2020) {
-      throw new Error('Invalid type: Type must be either 0: ED25519VERIFICATIONKEY2020 or 1: SR25519VERIFICATIONKEY2020');
+    if (verification.type == "ED25519VERIFICATIONKEY2020"){
+      verificationMethod.setType("ED25519VERIFICATIONKEY2020");
+    }
+    else if (verification.type == "SR25519VERIFICATIONKEY2020") {
+      verificationMethod.setType("SR25519VERIFICATIONKEY2020");
+    }
+    else {
+      throw new Error('Invalid type: Type must be either ED25519VERIFICATIONKEY2020 or SR25519VERIFICATIONKEY2020');
     }
 
-    verificationMethod.setType(verification.type);
-    verificationMethod.setController(this._getDidId(address, prefix));
+    verificationMethod.setController(didControllerAddress as string);
 
-    // generate & set public key multibase
-    const publicKey = decodeAddress(address, false, 42)
+    // generate & set public key multibase BASED ON the didAccountAddress?? -> MAY NEED TO CHANGE TO CONTROLLER??
+    const publicKey = decodeAddress(didAccountAddress, false, 42)
     const publicKeyHex = u8aToHex(publicKey);
     const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
-    verificationMethod.setPublickeymultibase(publicKeyMultibase);
+    verificationMethod.setPublicKeyMultibase(publicKeyMultibase);
 
     return { verificationMethod, verificationId: id };
   }
 
   private _createSignature(signature: Signature) {
-    if (!Object.values(peaqDidProto.VerificationType).includes(signature.type)) throw new Error('Signature Type is required');
+    if (!["ED25519VERIFICATIONKEY2020", "SR25519VERIFICATIONKEY2020"].includes(signature.type)) {
+      throw new Error('Signature Type must be "ED25519VERIFICATIONKEY2020" or "SR25519VERIFICATIONKEY2020"');
+  }
     if (!signature.issuer) throw new Error('Signature Issuer is required');
     if (!signature.hash) throw new Error('Signature Hash is required');
 
@@ -358,19 +414,18 @@ export class Did extends Base {
     documentService.setId(service.id);
     documentService.setType(service.type);
     if (service.serviceEndpoint) {
-      documentService.setServiceendpoint(service.serviceEndpoint);
+      documentService.setServiceEndpoint(service.serviceEndpoint);
     }
-
     if (service.data) {
       documentService.setData(service.data);
     }
     return documentService;
   }
 
-  private _createDidDocument(options: DidDocumentOptions): `0x${string}` {
+  private _generateDidDocument(options: DidDocumentOptions): `0x${string}` {
     const { didAccountAddress, didControllerAddress, customDocumentFields } = options;
 
-    const document = new peaqDidProto.Document();
+    let document = new peaqDidProto.Document();
 
     if (customDocumentFields?.prefix){
       this._prefix = customDocumentFields?.prefix;
@@ -379,17 +434,25 @@ export class Did extends Base {
       this._prefix = 'peaq';
     }
 
+    // set id
     document.setId(this._getDidId(didAccountAddress.toString(), this._prefix));
-    document.setController(this._getDidId(didControllerAddress.toString(), this._prefix));
+
+    // set controller if present in customDocumentFields
+    if (customDocumentFields?.controller){
+      document = this._setController(customDocumentFields, document);
+    }
+    else { // default set controller
+      document.setController(this._getDidId(didControllerAddress.toString(), this._prefix));
+    }
 
 
     if (customDocumentFields?.verifications) {
-      let keyNum = 1;
       customDocumentFields.verifications.forEach((verification) => {
-        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), this._prefix as string, keyNum);
-        document.addVerificationmethods(verificationMethod);
+        let keyCounter = 1;
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), document.getController(), this._prefix as string, keyCounter);
+        document.addVerificationMethods(verificationMethod);
         document.addAuthentications(verificationId);
-        keyNum += 1;
+        keyCounter += 1;
       });
     }
 
@@ -413,10 +476,10 @@ export class Did extends Base {
   private _updateDidDocument(options: UpdateDidDocumentOptions): `0x${string}` {
     const { didAccountAddress, didControllerAddress, customDocumentFields, oldDocument } = options;
     
-    const new_document = new peaqDidProto.Document();
+    let newDocument = new peaqDidProto.Document();
 
-    const old_id = oldDocument.id;
-    const idParts = old_id.split(':');
+    const oldId = oldDocument.id;
+    const idParts = oldId.split(':');
 
     // if there is a prefix change id to include that prefix
     if (customDocumentFields?.prefix){
@@ -424,66 +487,67 @@ export class Did extends Base {
       if (idParts.length === 3 && idParts[1] === this._prefix) {
         this._prefix = customDocumentFields?.prefix;
         const new_id = `did:${this._prefix}:${idParts[2]}`;
-        new_document.setId(new_id);
+        newDocument.setId(new_id);
       }
     }
     else { // default to previous prefix after did: if user doesn't manually set
-      new_document.setId(oldDocument.id);
+      newDocument.setId(oldDocument.id);
       this._prefix = idParts[1];
     }
 
-
-    // set old controller if not present
     if (customDocumentFields?.controller) {
-      // TODO is there a check to make sure they can change controller?
-      // if the read public metadata key and the old_document controller match, then you are able to change the controller
-
-      let controller = customDocumentFields?.controller;
-      controller = `did:${this._prefix}:${controller}`;
-
-      const regex = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/; // regex would need to change if we update to use ethereum keyrings as well
-      if(!regex.test(controller)) {
-        throw new Error('Incorrect controller format. Make sure to set prefix in customDocumentFields.');
-      }
-      new_document.setController(controller);
+      newDocument = this._setController(customDocumentFields, newDocument);
     }
     else  {
+      const oldController = oldDocument.controller;
+      const controllerParts = oldController.split(':');
       // if the prefix has been changed update the controller to reflect it
-      const old_controller = oldDocument.controller;
-      const controllerParts = old_controller.split(':');
       if (this._prefix !== controllerParts[1]) {
-        new_document.setController(`did:${this._prefix}:${controllerParts[2]}`);
+        newDocument.setController(`did:${this._prefix}:${controllerParts[2]}`);
       }
       else {
-        new_document.setController(oldDocument.controller);
+        newDocument.setController(oldDocument.controller);
       }
-    }
+  }
 
     if (customDocumentFields?.verifications) {
       customDocumentFields.verifications.forEach((verification) => {
-        let keyNum = 1; 
-        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), this._prefix as string, keyNum);
-        new_document.addVerificationmethods(verificationMethod);
-        new_document.addAuthentications(verificationId);
-        keyNum += 1;
+        let keyCounter = 1;
+        const { verificationId, verificationMethod } = this._createVerificationMethod(verification, didAccountAddress.toString(), newDocument.getController(), this._prefix as string, keyCounter);
+        newDocument.addVerificationMethods(verificationMethod);
+        newDocument.addAuthentications(verificationId);
+        keyCounter += 1;
       })
     }
 
     if (customDocumentFields?.signature) {
       const signature = customDocumentFields?.signature;
       const documentSignature = this._createSignature(signature);
-      new_document.setSignature(documentSignature);
+      newDocument.setSignature(documentSignature);
     }
 
     if (customDocumentFields?.services) {
         customDocumentFields.services.forEach((service) => {
           const documentService = this._createService(service);
-          new_document.addServices(documentService);
+          newDocument.addServices(documentService);
       });
     }
 
-    const bytes = new_document.serializeBinary();
+    const bytes = newDocument.serializeBinary();
     return u8aToHex(bytes);
+  }
+
+  private _setController(customDocumentFields: UpdateDocumentFields, newDocument: peaqDidProto.Document){
+      const controllerHold = customDocumentFields?.controller;
+      const controller = `did:${this._prefix}:${controllerHold}`;
+
+      const regexSS58 = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/;
+      const regexETH = /^did:[^:]+:0x[a-fA-F0-9]{40}$/;
+      if(!regexSS58.test(controller as string) && !regexETH.test(controller as string)) {
+        throw new Error('Incorrect controller format. Make sure to set prefix and controller in customDocumentFields. Controller must either be a SS58 or Ethereum Address');
+      }
+      newDocument.setController(controller);
+      return newDocument;
   }
 
   private _checkSeed(seed: string){
@@ -497,7 +561,12 @@ export class Did extends Base {
 
   private _checkAddress(accountAddress: Address) {
     if (!accountAddress) throw new AddressError('Address is required');
-    const regex = /^[1-9A-HJ-NP-Za-km-z]{48}$/; // regex used to check address format
-    if(!regex.test(accountAddress as string)) throw new AddressError('Incorrect SS58 Address format. Given address does not match expected length or contains an invalid char. SS58 address are 58 char in length with 0, O, I & l omitted.');
+    const regexSS58 = /^[1-9A-HJ-NP-Za-km-z]{48}$/; // regex for ss58
+    const regexETH = /^0x[a-fA-F0-9]{40}$/;         // regex for Ethereum
+    if(!regexSS58.test(accountAddress as string) && !regexETH.test(accountAddress as string)){
+      throw new AddressError(`Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
+        SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
+        40 hexadecimal characters (0-9, a-f, A-F) with no characters omitted.`);
+    }
   }
 }

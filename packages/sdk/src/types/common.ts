@@ -31,7 +31,7 @@ export enum CreateStorageKeysEnum {
 export interface DidDocument {
   id: string;
   controller: string;
-  verificationmethodsList: {
+  verificationMethods: {
     id: string;
     type: string;
     controller: string;
@@ -42,13 +42,13 @@ export interface DidDocument {
     issuer: string;
     hash: string;
   };
-  servicesList: {
+  services: {
     id: string;
     type: string;
     serviceEndpoint: string;
     data: string;
   }[];
-  authenticationsList: string[];
+  authentications: string[];
 }
 
 export interface ReadDidResponse {
