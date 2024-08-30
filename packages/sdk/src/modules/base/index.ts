@@ -47,7 +47,8 @@ export class Base {
     if (!seed) {
       throw new Error('Seed is required');
     }
-    const keyring = new Keyring({ type: 'sr25519' });
+    const keyring = new Keyring({ ss58Format: 42, type: 'sr25519' });
+
     return keyring.addFromUri(seed);
   };
 

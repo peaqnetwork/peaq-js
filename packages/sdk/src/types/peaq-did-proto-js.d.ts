@@ -8,7 +8,7 @@ declare namespace peaqDidProto {
     setId(value: string): void;
     setType(value: VerificationType): void;
     setController(value: string): void;
-    setPublickeymultibase(value: string): void;
+    setPublicKeyMultibase(value: string): void;
   }
 
   export class Signature {
@@ -41,16 +41,16 @@ declare namespace peaqDidProto {
   export class Service {
     setId(value: string): void;
     setType(value: ServiceType): void;
-    setStringdata(value: string): void;
+    setStringData(value: string): void;
     setMetadata(value: Metadata): void;
-    hasServiceendpoint(): boolean;
-    clearServiceendpoint(): void;
+    hasServiceEndpoint(): boolean;
+    clearServiceEndpoint(): void;
   }
 
   export class Document {
     setId(value: string): void;
     setController(value: string): void;
-    addVerificationmethods(value: VerificationMethod, index?: number): void;
+    addVerificationMethods(value: VerificationMethod, index?: number): void;
     setSignature(value: Signature): void;
     addServices(value: Service, index?: number): void;
     addAuthentications(value: string, index?: number): void;
