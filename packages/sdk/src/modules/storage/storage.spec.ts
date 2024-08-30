@@ -2,24 +2,31 @@ import { ApiPromise, WsProvider } from '@polkadot/api';
 import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { Storage } from './index';
+import { u8aToHex, stringToU8a } from '@polkadot/util';
 import { unsubscribeRuntimeVersion } from '../../utils';
+import { StorageError, ItemTypeError, ItemError, StorageAddressError} from '../../utils/errors';
 
-const BASE_URL = 'wss://wsspc1-qa.agung.peaq.network'; //process.env['NX_NETWORK_BASE_URL'] as string;
+const BASE_URL = process.env['BASE_URL'] as string;
+const SEED = process.env['SEED'] as string;
+
+const address_error = `StorageAddressError: Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
+            SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
+            40 hexadecimal characters (0-9, a-f, A-F) with no characters omitted.`
 
 // WIP -> Need to have further discussions on proper implementation
 // - create test to make sure remove storage function only works with the address that created the object
 describe('Storage', () => {
   let api: ApiPromise;
   let keyring: Keyring;
-  let alice: KeyringPair;
+  let user: KeyringPair;
   let storage: Storage;
 
   beforeAll(async () => {
     const provider = new WsProvider(BASE_URL);
     api = await ApiPromise.create({ provider, noInitWarn: true });
     keyring = new Keyring({ type: 'sr25519' });
-    alice = keyring.addFromUri('//Alice');
-    storage = new Storage(api, { pair: alice });
+    user = keyring.addFromUri(SEED);
+    storage = new Storage(api, { pair: user });
   }, 40000);
 
   afterAll(async () => {
@@ -30,60 +37,183 @@ describe('Storage', () => {
   // TODO build out good testing sequences
 
   describe('addItem()', () => {
-    it('basic add item', async() => {
+    it('try to add an item type with no name', async() => {
+      await expect(storage.addItem({itemType: '', item: 'test'}))
+      .rejects.toThrowError(new StorageError("ItemTypeError: Item Type name is required"));
+    });
+    it('try to add an item with no name', async() => {
+      await expect(storage.addItem({itemType: 'test', item: ''}))
+      .rejects.toThrowError(new StorageError("ItemError: Item name is required"));
+    });
+    // throws an error when a seed phrase is not 12 or 24 words long
+    it('add to storage with an incorrect seed', async () => {
+      const new_did  = 'did-test-1';
+      await expect(storage.addItem({itemType: new_did, item: 'hi123', seed: 'My incorrect seed phrase'}))
+        .rejects.toThrowError(new StorageError('StorageSeedError: Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.'));
+    });
+    it('try to add an item type larger than 64 bytes', async() => {
+      const tooBig = "This is a sample string that is definitely more than 64 bytes long and should satisfy the requirement.";
+      await expect(storage.addItem({itemType: tooBig, item: 'test'}))
+      .rejects.toThrowError(new StorageError("ItemTypeError: New Item Type cannot be larger than 64 bytes"));
+    });
+    it('try to add an item larger than 256 bytes', async() => {
+      const tooBig = `The ancient forest was filled with a mysterious fog that twisted through the trees, whispering secrets that had been forgotten by time itself. A lone traveler, 
+      with a weathered map in hand, ventured deeper into the unknown, the crunch of leaves underfoot echoing in the silence. The air was thick with the scent of pine and damp earth, 
+      and every shadow seemed to shift with unseen movement. Somewhere in the distance, an owl hooted, its call a haunting melody that resonated through the darkness. As the traveler continued, 
+      the fog began to clear, revealing a path lined with ancient stones, each one etched with symbols that glowed faintly in the dim light.`
+      await expect(storage.addItem({itemType: 'test', item: tooBig}))
+      .rejects.toThrowError(new StorageError("ItemError: New Item cannot be larger than 256 bytes"));
+    });
+    it('basic add item then remove', async() => {
         const itemType = "item_type"
         const item = "hi123";
         const result = await storage.addItem({
             itemType: itemType,
-            item: item});
-        expect(result).toBeDefined();
-        expect(result.log).toBe(`Successfully added the storage item type ${itemType} with item ${item} for the address ${alice.address}`)
-    }, 50000);
-  });
-  describe('getItem()', () => {
-    it('basic get item', async() => {
-        const itemType = "item_type"
-        const result = await storage.getItem({
-            itemType: itemType
-        });
-        expect(result).toBeDefined();
-        expect(result?.log).toBe('hi123');
-    }, 50000);
-  });
-
-  describe('updateItem()', () => {
-    // should a failed extrinsic be sent if we try to update a value that already has the same item?
-    it('basic get item', async() => {
-        const itemType = "item_type";
-        const item = "bye123";
-        const result = await storage.updateItem({
-            itemType: itemType,
             item: item
         });
         expect(result).toBeDefined();
-        expect(result?.log).toBe(`Successfully updated the storage item type ${itemType} to the new item ${item} for the address ${alice.address}`)
-    }, 50000);
-  });
+        expect(result.log).toBe(`Successfully added the storage item type ${itemType} with item ${item} for the address ${user.address}`);
+        const result2 = await storage.removeItem({itemType: itemType});
+        expect(result2).toBeDefined();
+        expect(result2.log).toBe(`Successfully removed the storage item type ${itemType} from address ${user.address}`);
 
+    }, 70000);
+
+  });
   describe('getItem()', () => {
-    it('basic get item', async() => {
+    it('try to add an item type with no name', async() => {
+      await expect(storage.getItem({itemType: ''}))
+      .rejects.toThrowError(new StorageError("ItemTypeError: Item Type name is required"));
+    });
+    it('try to get an item with a bad address passed', async () => {
+      const item_type  = 'item type with bad address test';
+      const address1 = 'Incorrect Address Format';
+      const address2 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pgg'; // address has an additional char at the end (49 chars)
+      const address3 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12P';   // address has an additional char at the end (47 chars)
+      const address4 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12P0';  // address that is proper length but has 0 included
+      const address5 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PO';  // address that is proper length but has O included
+      const address6 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PI';  // address that is proper length but has I included
+      const address7 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pl';  // address that is proper length but has I included
+      await expect(storage.getItem({itemType: item_type, address: address1}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address2}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address3}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address4}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address5}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address6}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address7}))
+        .rejects.toThrowError(new StorageError(address_error));
+    });
+    it('generate did with an incorrect Ethereum address', async () => {
+      const item_type  = 'item type with bad address test';
+      const address1 = 'Incorrect Address Format';
+      const address2 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641CC';       // address has an additional char at the end (43 chars)
+      const address3 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641';         // address has an one less char at the end (41 chars)
+      const address4 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641Z';        // address is proper length but has invalid hex value of 'Z'
+      await expect(storage.getItem({itemType: item_type, address: address1}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address2}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address3}))
+        .rejects.toThrowError(new StorageError(address_error));
+      await expect(storage.getItem({itemType: item_type, address: address4}))
+        .rejects.toThrowError(new StorageError(address_error));
+    });
+    it('basic get item after creating, then delete', async() => {
         const itemType = "item_type"
-        const result = await storage.getItem({
+        const item = "hi123";
+        await storage.addItem({
+            itemType: itemType,
+            item: item
+        });
+        const result2 = await storage.getItem({
             itemType: itemType
         });
-        expect(result).toBeDefined();
-        expect(result?.log).toBe('bye123');
-    }, 50000);
+        expect(result2).toBeDefined();
+        expect(result2?.log).toBe('hi123');
+        const result3 = await storage.removeItem({itemType: itemType});
+        expect(result3).toBeDefined();
+        expect(result3.log).toBe(`Successfully removed the storage item type ${itemType} from address ${user.address}`);
+    }, 80000);
   });
+
+  describe('updateItem()', () => {
+    it('try to update an item type with no name', async() => {
+      await expect(storage.updateItem({itemType: '', item: 'test'}))
+      .rejects.toThrowError(new StorageError("ItemTypeError: Item Type name is required"));
+    });
+    it('try to update an item with no name', async() => {
+      await expect(storage.updateItem({itemType: 'test', item: ''}))
+      .rejects.toThrowError(new StorageError("ItemError: Item name is required"));
+    });
+    // throws an error when a seed phrase is not 12 or 24 words long
+    it('update to storage with an incorrect seed', async () => {
+      const new_did  = 'did-test-1';
+      await expect(storage.updateItem({itemType: new_did, item: 'hi123', seed: 'My incorrect seed phrase'}))
+        .rejects.toThrowError(new StorageError('StorageSeedError: Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.'));
+    });
+    it('try to update an item type larger than 64 bytes', async() => {
+      const tooBig = "This is a sample string that is definitely more than 64 bytes long and should satisfy the requirement.";
+      await expect(storage.updateItem({itemType: tooBig, item: 'test'}))
+      .rejects.toThrowError(new StorageError("ItemTypeError: New Item Type cannot be larger than 64 bytes"));
+    });
+    it('try to update an item larger than 256 bytes', async() => {
+      const tooBig = `The ancient forest was filled with a mysterious fog that twisted through the trees, whispering secrets that had been forgotten by time itself. A lone traveler, 
+      with a weathered map in hand, ventured deeper into the unknown, the crunch of leaves underfoot echoing in the silence. The air was thick with the scent of pine and damp earth, 
+      and every shadow seemed to shift with unseen movement. Somewhere in the distance, an owl hooted, its call a haunting melody that resonated through the darkness. As the traveler continued, 
+      the fog began to clear, revealing a path lined with ancient stones, each one etched with symbols that glowed faintly in the dim light.`
+      await expect(storage.updateItem({itemType: 'test', item: tooBig}))
+      .rejects.toThrowError(new StorageError("ItemError: New Item cannot be larger than 256 bytes"));
+    });
+    it('create item, read item, update item, read item, then remove', async() => {
+        const itemType = "item_type";
+        const item = "bye123";
+        await storage.addItem({itemType: itemType, item: "hi123"});
+        const result = await storage.getItem({
+          itemType: itemType
+        });
+        expect(result).toBeDefined();
+        expect(result?.log).toBe('hi123');
+        const result2 = await storage.updateItem({
+            itemType: itemType,
+            item: item
+        });
+        expect(result2).toBeDefined();
+        expect(result2?.log).toBe(`Successfully updated the storage item type ${itemType} to the new item ${item} for the address ${user.address}`);
+        const result3 = await storage.getItem({
+          itemType: itemType
+        });
+        expect(result3).toBeDefined();
+        expect(result3?.log).toBe(item);
+        await storage.removeItem({itemType: itemType});
+    }, 90000);
+  });
+
   
   describe('removeItem()', () => {
-    it('basic remove item', async() => {
+    it('try to remove an item type with no name', async() => {
+      await expect(storage.removeItem({itemType: ''}))
+      .rejects.toThrowError(new StorageError("ItemTypeError: Item Type name is required"));
+    });
+    // throws an error when a seed phrase is not 12 or 24 words long
+    it('remove storage with an incorrect seed', async () => {
+      const new_did  = 'did-test-1';
+      await expect(storage.removeItem({itemType: new_did, seed: 'My incorrect seed phrase'}))
+        .rejects.toThrowError(new StorageError('StorageSeedError: Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.'));
+    });
+    it('try to remove item', async() => {
         const itemType = "item_type"
+        await storage.addItem({itemType: itemType, item: "hi123"});
         const result = await storage.removeItem({
             itemType: itemType
         });
         expect(result.log).toBeDefined();
-        expect(result?.log).toBe(`Successfully removed the storage item type ${itemType} from address ${alice.address}`);
+        expect(result?.log).toBe(`Successfully removed the storage item type ${itemType} from address ${user.address}`);
     }, 50000);
   });
 });

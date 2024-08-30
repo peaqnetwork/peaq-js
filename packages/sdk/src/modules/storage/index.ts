@@ -1,23 +1,16 @@
 import { ApiPromise } from '@polkadot/api';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
-import { CreateStorageKeysEnum } from '../../types';
+import { CreateStorageKeysEnum, Address } from '../../types';
 import { createStorageKeys } from '../../utils';
 import { stringToU8a, u8aToHex, hexToString } from '@polkadot/util';
-
+import { StorageError, ItemTypeError, ItemError, StorageAddressError, StorageSeedError} from '../../utils/errors';
 import type { SDKMetadata} from '../../types';
-
 import { Base } from '../base';
 
-// TODO chunk similar looking code into helpers
-
-// Have types be named storage or item: AddItemOptions or AddItemOptions (almost should change to addStorage in pallets rather than updateItem)
-// I am build the sdk off the pallet names
-
-// what else can be stored in storage? Right now I created a string identifier to a hex signature
 type AddItemOptions = {
     itemType: string;
-    item: string; // signature hash
+    item: string;
     seed?: string;
 } 
 
@@ -33,18 +26,19 @@ type GetItemOptions = {
 
 type UpdateItemOptions = {
     itemType: string;
-    item: string; // signature hash
+    item: string;
     seed?: string;
 }
 
 type AddItemResult = {
     log: string;
-    hash: CodecHash;
+    block_hash: CodecHash;
     unsubscribe: () => void;
 }
 
 type RemoveItemResult = {
     log: string;
+    block_hash: CodecHash;
     unsubscribe: () => void;
 }
 
@@ -55,7 +49,7 @@ type GetItemResult = {
 
 type UpdateItemResult = {
     log: string;
-    hash: CodecHash;
+    block_hash: CodecHash;
     unsubscribe: () => void;
 }
 
@@ -87,25 +81,21 @@ export class Storage extends Base {
         // check if object is uint8array, if it is not then convert to see how big of storage will be needed
 
         // checks
-        if (!itemType) throw new Error('Item Type is required');
-        if (!item) throw new Error('Item is required');
-        if (stringToU8a(itemType).length > 64) throw new Error('New Item Type cannot be larger than 64 bytes');
-        if (stringToU8a(item).length > 256) throw new Error('New item cannot be larger than 256 bytes');
+        if (!itemType) throw new ItemTypeError('Item Type name is required');
+        if (!item) throw new ItemError('Item name is required');
+        if (seed !== '') this._checkSeed(seed);
+
+        // convert string to bytes to count before calling extrinsics
+        if (stringToU8a(itemType).length > 64) throw new ItemTypeError('New Item Type cannot be larger than 64 bytes');
+        if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
 
         const keyPair = this._metadata?.pair || this._getKeyPair(seed);
-
-        // debugging
-        // console.log('new item length', stringToU8a(itemType).length);
-        // console.log('new item length', stringToU8a(item).length);
-
         const attributeExtrinsic = api.tx?.['peaqStorage']?.['addItem'](
             itemType,
             item
         );
-
         const nonce = await this._getNonce(keyPair.address);
-        await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
-        
+        const eventData = await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
         const unsubscribe = await attributeExtrinsic.send((result) => {
         statusCallback &&
             statusCallback(result as unknown as ISubmittableResult);
@@ -113,18 +103,12 @@ export class Storage extends Base {
         // is it necessary to add more verbose logging in return object?
         return {
             log: `Successfully added the storage item type ${itemType} with item ${item} for the address ${keyPair.address}`,
-            hash: attributeExtrinsic.hash as unknown as CodecHash,
+            block_hash: eventData[0]?.blockHash as unknown as CodecHash,
             unsubscribe,
         };
         
-
-
-        // store 'item type' as bytes with no greater than 64
-        // - how to limit the amount stored?
-        // store 'item' as bytes with not greater than 256 bytes
-        // - make sure what is stored is a signature
     } catch (error) {
-        throw new Error(`Add to peaq Storage ${error}`);
+        throw new StorageError(`${error}`);
         }
     }
 
@@ -141,16 +125,15 @@ export class Storage extends Base {
             const api = this._getApi();
 
             const { itemType, seed = ''} = options;
+            if (!itemType) throw new ItemTypeError('Item Type name is required');
+            if (seed !== '') this._checkSeed(seed);
 
             const keyPair = this._metadata?.pair || this._getKeyPair(seed);
-
-            if (!itemType) throw new Error('Item Type is required');
-
             const attributeExtrinsic = api.tx?.['peaqStorage']?.['removeItem'](
                 itemType
               );
               const nonce = await this._getNonce(keyPair.address);
-              await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
+              const eventData = await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
               // await attributeExtrinsic.signAsync(keyPair, { nonce });
               const unsubscribe = await attributeExtrinsic.send((result) => {
                 statusCallback &&
@@ -160,11 +143,12 @@ export class Storage extends Base {
               // successfully removed the did of name __ from address machine address __
               return {
                 log: `Successfully removed the storage item type ${itemType} from address ${keyPair.address}`,
+                block_hash: eventData[0]?.blockHash as unknown as CodecHash,
                 unsubscribe,
               };
 
         } catch (error) {
-            throw new Error(`Error removing Storage Item: ${error}`);
+            throw new StorageError(`${error}`);
         }
      }
 
@@ -172,33 +156,33 @@ export class Storage extends Base {
        try {
         const api = this._getApi();
 
-        const { itemType, address } = options;
+        const { itemType, address = '' } = options;
+        if (!itemType) throw new ItemTypeError('Item Type name is required');
+        if (address !== '') this._checkAddress(address);
+
         const accountAddress = address || this._metadata?.pair?.address;
-    
-        if (!itemType) throw new Error('Name is required');
-        if (!accountAddress) throw new Error('Address is required');
+        if (!accountAddress) throw new StorageAddressError('Address is required');
 
             const { hashed_key } = createStorageKeys([
                 {
                   value: accountAddress,
                   type: CreateStorageKeysEnum.ADDRESS,
                 },
-                { value: itemType, type: CreateStorageKeysEnum.STANDARD },
-              ]);
-
-              const item = (await api.query?.['peaqStorage']?.['itemStore'](
+                { 
+                    value: itemType, type: CreateStorageKeysEnum.STANDARD
+                },
+            ]);
+            const item = (await api.query?.['peaqStorage']?.['itemStore'](
                 hashed_key
-              ));
-
-              if (!item || item.isStorageFallback) return null;
-        
-              // is toHuman acceptable here? What if a simple string is not passed?
-              return {
+            ));
+            if (!item || item.isStorageFallback) return null;
+            // is toHuman acceptable here? What if a simple string is not passed?
+            return {
                 log: `${item.toHuman()}`,
-              };
-            }
+            };
+        }
        catch (error) {
-        throw new Error(`Read Storage Item: ${error}`);
+        throw new StorageError(`${error}`);
        }
     }
 
@@ -211,25 +195,21 @@ export class Storage extends Base {
             const {itemType, item, seed = ''} = options;
     
             // checks
-            if (!itemType) throw new Error('Item Type is required');
-            if (!item) throw new Error('Item is required');
-            if (stringToU8a(itemType).length > 64) throw new Error('New Item Type cannot be larger than 64 bytes');
-            if (stringToU8a(item).length > 256) throw new Error('New item cannot be larger than 256 bytes');
+            if (!itemType) throw new ItemTypeError('Item Type name is required');
+            if (!item) throw new ItemError('Item name is required');
+            if (seed !== '') this._checkSeed(seed);
+            
+            // convert string to bytes to count before calling extrinsics
+            if (stringToU8a(itemType).length > 64) throw new ItemTypeError('New Item Type cannot be larger than 64 bytes');
+            if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
     
             const keyPair = this._metadata?.pair || this._getKeyPair(seed);
-    
-            // debugging
-            // console.log('new item length', stringToU8a(itemType).length);
-            // console.log('new item length', stringToU8a(item).length);
-    
             const attributeExtrinsic = api.tx?.['peaqStorage']?.['updateItem'](
                 itemType,
                 item
             );
-    
             const nonce = await this._getNonce(keyPair.address);
-            await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
-            
+            const eventData = await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
             const unsubscribe = await attributeExtrinsic.send((result) => {
             statusCallback &&
                 statusCallback(result as unknown as ISubmittableResult);
@@ -237,13 +217,32 @@ export class Storage extends Base {
             // is it necessary to add more verbose logging in return object?
             return {
                 log: `Successfully updated the storage item type ${itemType} to the new item ${item} for the address ${keyPair.address}`,
-                hash: attributeExtrinsic.hash as unknown as CodecHash,
+                block_hash: eventData[0]?.blockHash as unknown as CodecHash,
                 unsubscribe,
             };
         }
 
         catch (error){
-            throw new Error(`Updatet Storage Item ${error}`);
+            throw new StorageError(`${error}`);
         }
-    }   
+    }
+    // same code as fund in did/inxdex.ts -> eventually put into a file that uses the same code in different places
+    private _checkSeed(seed: string){
+        const words = seed.trim().split(/\s+/);
+    
+        // Check if the length is either 12 or 24
+        if (words.length !== 12 && words.length !== 24) {
+          throw new StorageSeedError('Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.');
+        }
+    }
+    // same code as fund in did/inxdex.ts -> eventually put into a file that uses the same code in different places
+    private _checkAddress(accountAddress: Address) {
+        const regexSS58 = /^[1-9A-HJ-NP-Za-km-z]{48}$/; // regex for ss58
+        const regexETH = /^0x[a-fA-F0-9]{40}$/;         // regex for Ethereum
+        if(!regexSS58.test(accountAddress as string) && !regexETH.test(accountAddress as string)){
+          throw new StorageAddressError(`Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
+            SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
+            40 hexadecimal characters (0-9, a-f, A-F) with no characters omitted.`);
+        }
+      }
 }
