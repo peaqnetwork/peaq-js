@@ -161,10 +161,10 @@ describe('Did', () => {
           prefix: 'custom_name',
           controller: `${user2.address}`,
           verifications: [{
-            type: "ED25519VERIFICATIONKEY2020"
+            type: "Ed25519VerificationKey2020"
           }],
           signature: {
-            type: "ED25519VERIFICATIONKEY2020",
+            type: "Ed25519VerificationKey2020",
             issuer: '123',
             hash: '0x123'
           },
@@ -195,10 +195,10 @@ describe('Did', () => {
           prefix: 'custom_name',
           controller: addressETH,
           verifications: [{
-            type: "ED25519VERIFICATIONKEY2020"
+            type: "Ed25519VerificationKey2020"
           }],
           signature: {
-            type: "ED25519VERIFICATIONKEY2020",
+            type: "Ed25519VerificationKey2020",
             issuer: '123',
             hash: '0x123'
           },
@@ -357,10 +357,10 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: "ED25519VERIFICATIONKEY2020"
+          type: "Ed25519VerificationKey2020"
         }],
         signature: {
-          type: "ED25519VERIFICATIONKEY2020",
+          type: "Ed25519VerificationKey2020",
           issuer: '123',
           hash: '0x123'
         }
@@ -374,10 +374,10 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: "ED25519VERIFICATIONKEY2020"
+          type: "Ed25519VerificationKey2020"
         }],
         signature: {
-          type: "ED25519VERIFICATIONKEY2020",
+          type: "Ed25519VerificationKey2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -395,10 +395,32 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: "SR25519VERIFICATIONKEY2020"
+          type: "Sr25519VerificationKey2020"
         }],
         signature: {
-          type: "SR25519VERIFICATIONKEY2020",
+          type: "Sr25519VerificationKey2020",
+          issuer: '123',
+          hash: '0x123'
+        },
+        services: [{
+          id: 'machine-identifier-1',
+          type: 'Machine-1',
+          serviceEndpoint: 'http://localhost:8080/ipfs/'
+        }]
+      }
+      await createReadRemove(new_did, did, user, customFields, null, null);
+    }, 80000);
+
+    it('create custom did with verification publicKeyMultibase set by user manually', async () => {
+      const new_did  = 'did-test-1';
+
+      const customFields: CustomDocumentFields = {
+        verifications: [{
+          type: "Sr25519VerificationKey2020",
+          publicKeyMultibase: 'z6Mk2LwdsH9ik4vY7m9k5npfJ8a2sBLyUv67mZrkLbPZ7rtN',
+        }],
+        signature: {
+          type: "Sr25519VerificationKey2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -523,7 +545,7 @@ describe('Did', () => {
       const new_did  = 'did-test-1';
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: "ED25519VERIFICATIONKEY2020"
+          type: "Ed25519VerificationKey2020"
         }],
       }
       await expect(did.update({
@@ -540,7 +562,7 @@ describe('Did', () => {
   
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: "SR25519VERIFICATIONKEY2020"
+          type: "Sr25519VerificationKey2020"
         }]
       }
 
@@ -566,10 +588,10 @@ describe('Did', () => {
         prefix: 'custom_name',
         controller: `${user2.address}`,
         verifications: [{
-          type: "ED25519VERIFICATIONKEY2020"
+          type: "Ed25519VerificationKey2020"
         }],
         signature: {
-          type: "ED25519VERIFICATIONKEY2020",
+          type: "Ed25519VerificationKey2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -604,10 +626,10 @@ describe('Did', () => {
       const customFields: CustomDocumentFields = {
         prefix: 'custom_name',
         verifications: [{
-          type: "ED25519VERIFICATIONKEY2020"
+          type: "Ed25519VerificationKey2020"
         }],
         signature: {
-          type: "ED25519VERIFICATIONKEY2020",
+          type: "Ed25519VerificationKey2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -647,7 +669,7 @@ describe('Did', () => {
       // add verification, but do not change the prefix
       const customFields2: CustomDocumentFields = {
         verifications: [{
-          type: "SR25519VERIFICATIONKEY2020"
+          type: "Sr25519VerificationKey2020"
         }]
       }
       // add verification method. Should use the previously set prefix in the create function.
@@ -661,7 +683,7 @@ describe('Did', () => {
       const customFields3: CustomDocumentFields = {
         prefix: prefix,
         verifications: [{
-          type: "SR25519VERIFICATIONKEY2020"
+          type: "Sr25519VerificationKey2020"
         }]
       }
 
@@ -686,7 +708,7 @@ describe('Did', () => {
       const customFields2: CustomDocumentFields = {
         prefix: 'new_prefix',
         verifications: [{
-          type: "SR25519VERIFICATIONKEY2020"
+          type: "Sr25519VerificationKey2020"
         }]
       }
       // add verification method. Uses the new set prefix.
@@ -711,10 +733,10 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: "ED25519VERIFICATIONKEY2020"
+          type: "Ed25519VerificationKey2020"
         }],
         signature: {
-          type: "ED25519VERIFICATIONKEY2020",
+          type: "Ed25519VerificationKey2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -749,10 +771,10 @@ describe('Did', () => {
 
       const customFields: CustomDocumentFields = {
         verifications: [{
-          type: "ED25519VERIFICATIONKEY2020"
+          type: "Ed25519VerificationKey2020"
         }],
         signature: {
-          type: "ED25519VERIFICATIONKEY2020",
+          type: "Ed25519VerificationKey2020",
           issuer: '123',
           hash: '0x123'
         },
@@ -766,6 +788,44 @@ describe('Did', () => {
       const result = await did.update({
         name: new_did,
         seed: SEED,
+        customDocumentFields: customFields
+      });
+      expect(result).toBeDefined();
+
+      const result2 = await did.read({ address: user.address, name: new_did });
+      expect(result2).toBeDefined();
+
+      await readDid(result2 as ReadDidResponse, new_did, user, customFields);
+
+      // remove did for cleanup
+      const removeResult = await did.remove({name: new_did});
+      expect(removeResult?.block_hash).toBeDefined();
+      expect(typeof removeResult?.unsubscribe).toBe('function');
+    }, 100000);
+
+    it('should update a DID with a custom publicKeyMultibase set', async () => {
+      const new_did  = 'did-test-1';
+      await did.create({name: new_did});
+
+      const customFields: CustomDocumentFields = {
+        verifications: [{
+          type: "Ed25519VerificationKey2020",
+          publicKeyMultibase: 'z6Mk2LwdsH9ik4vY7m9k5npfJ8a2sBLyUv67mZrkLbPZ7rtN'
+        }],
+        signature: {
+          type: "Ed25519VerificationKey2020",
+          issuer: '123',
+          hash: '0x123'
+        },
+        services: [{
+          id: 'machine-identifier-1',
+          type: 'Machine-1',
+          serviceEndpoint: 'http://localhost:8080/ipfs/'
+        }]
+      }
+      
+      const result = await did.update({
+        name: new_did,
         customDocumentFields: customFields
       });
       expect(result).toBeDefined();
@@ -998,10 +1058,16 @@ async function readDocument(document: DidDocument, user: KeyringPair, customFiel
           else {
             expect(verification.controller).toEqual(`did:peaq:${address}`);
           }
-          // test verification of the proper publicKeyMultibase pattern
-          const multibase_pattern = /^[a-fA-F0-9]{64}$/;
-          const multibase_pattern2 = /^[a-fA-F0-9]{40}$/;
-          expect(multibase_pattern.test(verification.publicKeyMultibase as string) || multibase_pattern2.test(verification.publicKeyMultibase as string)).toBe(true);
+
+          if (setVerification?.publicKeyMultibase){
+            expect(verification.publicKeyMultibase).toEqual(setVerification?.publicKeyMultibase);
+          }
+          else {
+            // test verification of the proper publicKeyMultibase pattern
+            const multibase_pattern = /^[a-fA-F0-9]{64}$/;
+            const multibase_pattern2 = /^[a-fA-F0-9]{40}$/;
+            expect(multibase_pattern.test(verification.publicKeyMultibase as string) || multibase_pattern2.test(verification.publicKeyMultibase as string)).toBe(true);
+          }
         });
       });
     }
