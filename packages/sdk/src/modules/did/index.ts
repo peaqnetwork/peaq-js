@@ -5,7 +5,6 @@ import { decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
-import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
 import { CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
@@ -50,7 +49,6 @@ type Service = {
 }
 
 interface GenerateDidOptions {
-  name: string;
   address?: Address;
   seed?: string;
   customDocumentFields?: CustomDocumentFields;
@@ -135,9 +133,8 @@ export class Did extends Base {
   public async generate(options: GenerateDidOptions): Promise<GenerateDidResult> {
     try {
 
-      const { name, address = '', seed = '', customDocumentFields } = options;
+      const { address = '', seed = '', customDocumentFields } = options;
 
-      if (!name) throw new NameError('Name is required when creating a DID.');
       if (seed !== '') this._checkSeed(seed);
       if (address !== '') this._checkAddress(address);
 
@@ -427,7 +424,7 @@ export class Did extends Base {
     return documentService;
   }
 
-  private _generateDidDocument(options: DidDocumentOptions): `0x${string}` {
+ private _generateDidDocument(options: DidDocumentOptions): `0x${string}` {
     const { didAccountAddress, didControllerAddress, customDocumentFields } = options;
 
     let document = new peaqDidProto.Document();
