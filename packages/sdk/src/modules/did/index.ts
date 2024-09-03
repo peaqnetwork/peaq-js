@@ -5,7 +5,6 @@ import { decodeAddress } from '@polkadot/util-crypto';
 import { u8aToHex } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
-import { v4 as uuidv4 } from 'uuid';
 
 import { createStorageKeys } from '../../utils';
 import { CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
@@ -50,7 +49,6 @@ type Service = {
 }
 
 interface GenerateDidOptions {
-  name: string;
   address?: Address;
   seed?: string;
   customDocumentFields?: CustomDocumentFields;
@@ -135,9 +133,8 @@ export class Did extends Base {
   public async generate(options: GenerateDidOptions): Promise<GenerateDidResult> {
     try {
 
-      const { name, address = '', seed = '', customDocumentFields } = options;
+      const { address = '', seed = '', customDocumentFields } = options;
 
-      if (!name) throw new NameError('Name is required when creating a DID.');
       if (seed !== '') this._checkSeed(seed);
       if (address !== '') this._checkAddress(address);
 
@@ -199,7 +196,7 @@ export class Did extends Base {
         statusCallback &&
           statusCallback(result as unknown as ISubmittableResult);
       });
-
+      
       return {
         block_hash: eventData[0]?.blockHash as unknown as CodecHash,
         unsubscribe,
@@ -361,33 +358,38 @@ export class Did extends Base {
     let id = this._getDidId(didAccountAddress.toString(), prefix);
     id = `${id}#keys-${keyCounter}`;
 
-
     verificationMethod.setId(id);
 
-    if (verification.type == "ED25519VERIFICATIONKEY2020"){
-      verificationMethod.setType("ED25519VERIFICATIONKEY2020");
+    if (verification.type == "Ed25519VerificationKey2020"){
+      verificationMethod.setType("Ed25519VerificationKey2020");
     }
-    else if (verification.type == "SR25519VERIFICATIONKEY2020") {
-      verificationMethod.setType("SR25519VERIFICATIONKEY2020");
+    else if (verification.type == "Sr25519VerificationKey2020") {
+      verificationMethod.setType("Sr25519VerificationKey2020");
     }
     else {
-      throw new Error('Invalid type: Type must be either ED25519VERIFICATIONKEY2020 or SR25519VERIFICATIONKEY2020');
+      throw new Error('Invalid type: Type must be either Ed25519VerificationKey2020 or Sr25519VerificationKey2020');
     }
 
     verificationMethod.setController(didControllerAddress as string);
 
-    // generate & set public key multibase BASED ON the didAccountAddress?? -> MAY NEED TO CHANGE TO CONTROLLER??
-    const publicKey = decodeAddress(didAccountAddress, false, 42)
-    const publicKeyHex = u8aToHex(publicKey);
-    const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
-    verificationMethod.setPublicKeyMultibase(publicKeyMultibase);
+    if (verification?.publicKeyMultibase) {
+      verificationMethod.setPublicKeyMultibase(verification?.publicKeyMultibase);
+    }
+    else {
+      // generate & set public key multibase BASED ON the didAccountAddress?? -> MAY NEED TO CHANGE TO CONTROLLER??
+      const publicKey = decodeAddress(didAccountAddress, false, 42)
+      const publicKeyHex = u8aToHex(publicKey);
+      const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
+      verificationMethod.setPublicKeyMultibase(publicKeyMultibase);
+    }
+
 
     return { verificationMethod, verificationId: id };
   }
 
   private _createSignature(signature: Signature) {
-    if (!["ED25519VERIFICATIONKEY2020", "SR25519VERIFICATIONKEY2020"].includes(signature.type)) {
-      throw new Error('Signature Type must be "ED25519VERIFICATIONKEY2020" or "SR25519VERIFICATIONKEY2020"');
+    if (!["Ed25519VerificationKey2020", "Sr25519VerificationKey2020"].includes(signature.type)) {
+      throw new Error('Signature Type must be "Ed25519VerificationKey2020" or "Sr25519VerificationKey2020"');
   }
     if (!signature.issuer) throw new Error('Signature Issuer is required');
     if (!signature.hash) throw new Error('Signature Hash is required');
@@ -422,7 +424,7 @@ export class Did extends Base {
     return documentService;
   }
 
-  private _generateDidDocument(options: DidDocumentOptions): `0x${string}` {
+ private _generateDidDocument(options: DidDocumentOptions): `0x${string}` {
     const { didAccountAddress, didControllerAddress, customDocumentFields } = options;
 
     let document = new peaqDidProto.Document();
