@@ -49,8 +49,7 @@ type Service = {
 }
 
 interface GenerateDidOptions {
-  address?: Address;
-  seed?: string;
+  address: Address;
   customDocumentFields?: CustomDocumentFields;
 }
 
@@ -133,17 +132,14 @@ export class Did extends Base {
   public async generate(options: GenerateDidOptions): Promise<GenerateDidResult> {
     try {
 
-      const { address = '', seed = '', customDocumentFields } = options;
-
-      if (seed !== '') this._checkSeed(seed);
+      const { address = '', customDocumentFields } = options;
       if (address !== '') this._checkAddress(address);
 
-      const keyPair = this._metadata?.pair || this._getKeyPair(seed);
-      const accountAddress = address || keyPair.address;
+      const accountAddress = address;
 
       const didDocumentHash = this._generateDidDocument({
         didAccountAddress: accountAddress,
-        didControllerAddress: keyPair.address,
+        didControllerAddress: accountAddress,
         customDocumentFields,
       });
 

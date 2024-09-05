@@ -43,6 +43,17 @@ export class Main extends Base {
   }
 
   /**
+   * Creates a new offline instance of the SDK to use the generate function.
+   *
+   * @param None
+   * @returns The created offline instance of the SDK.
+   */
+    public static async createOfflineInstance(): Promise<Main> {
+      const sdk = new Main({});
+      return sdk;
+    }
+
+  /**
    * Connects the SDK to the network.
    */
   public async connect(): Promise<void> {
