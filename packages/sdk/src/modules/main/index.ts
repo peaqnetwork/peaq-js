@@ -14,19 +14,33 @@ import { RBAC } from "../rbac";
  */
 export class Main extends Base {
   private readonly _options: Options;
-  protected override _api: ApiPromise;
+  protected override _api: ApiPromise | undefined;
   private _metadata: SDKMetadata;
+
   public did: Did;
   public rbac: RBAC;
+  static offlineMode: boolean;
 
   constructor(options: Options) {
-    super();
-    this._options = options;
-    this._api = this._createApi(options);
-    this._metadata = {};
+    if (Main.offlineMode){
+      // if in offline mode initialize to empty data
+      super();
+      this._options = {};
+      this._api = undefined;
+      this._metadata = {};
 
-    this.did = new Did(this._api, this._metadata);
-    this.rbac = new RBAC(this._api, this._metadata);
+      this.did = new Did();
+      this.rbac = new RBAC();
+    }
+    else {
+      super();
+      this._options = options;
+      this._api = this._createApi(options);
+      this._metadata = {};
+
+      this.did = new Did(this._api, this._metadata);
+      this.rbac = new RBAC(this._api, this._metadata);
+    }
   }
 
   /**
@@ -36,6 +50,7 @@ export class Main extends Base {
    * @returns The created instance of the SDK.
    */
   public static async createInstance(options: Options): Promise<Main> {
+    this.offlineMode = false;
     await cryptoWaitReady();
     const sdk = new Main(options);
     await sdk.connect();
@@ -49,6 +64,7 @@ export class Main extends Base {
    * @returns The created offline instance of the SDK.
    */
     public static async createOfflineInstance(): Promise<Main> {
+      this.offlineMode = true;
       const sdk = new Main({});
       return sdk;
     }
