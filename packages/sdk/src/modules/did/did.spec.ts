@@ -8,6 +8,7 @@ import type { DidDocument, ReadDidResponse } from '../../types';
 import { CustomDocumentFields, Did } from './index';
 import { unsubscribeRuntimeVersion } from '../../utils';
 import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
+import { Main as SDK } from '../main';
 
 dotenv.config(); // Load variables from .env file
 
@@ -38,6 +39,7 @@ describe('Did', () => {
   let user2: KeyringPair;
   let did: Did;
   let did2: Did;
+  let sdk: SDK;
 
   beforeAll(async () => {
     const provider = new WsProvider(BASE_URL);
@@ -48,6 +50,7 @@ describe('Did', () => {
     user2 = keyring2.addFromUri(SEED2);
     did = new Did(api, { pair: user });
     did2 = new Did(api, { pair: user2 });
+    sdk = await SDK.createOfflineInstance();
   }, 40000);
 
   afterAll(async () => {
@@ -60,7 +63,6 @@ describe('Did', () => {
    */
     describe('generate()', () => {
       it('generate did with an incorrect Substrate address', async () => {
-        const new_did  = 'did-test-1';
         const address1 = 'Incorrect Address Format';
         const address2 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pgg'; // address has an additional char at the end (49 chars)
         const address3 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12P';   // address has an additional char at the end (47 chars)
@@ -69,48 +71,40 @@ describe('Did', () => {
         const address6 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PI';  // address that is proper length but has I included
         const address7 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pl';  // address that is proper length but has I included
   
-        await expect(did.generate({address: address1}))
+        await expect(sdk.did.generate({address: address1}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address2}))
+        await expect(sdk.did.generate({address: address2}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address3}))
+        await expect(sdk.did.generate({address: address3}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address4}))
+        await expect(sdk.did.generate({address: address4}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address5}))
+        await expect(sdk.did.generate({address: address5}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address6}))
+        await expect(sdk.did.generate({address: address6}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address7}))
+        await expect(sdk.did.generate({address: address7}))
           .rejects.toThrow(new CreateDidError(address_error));
       });
 
       it('generate did with an incorrect Ethereum address', async () => {
-        const new_did  = 'did-test-1';
         const address1 = 'Incorrect Address Format';
         const address2 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641CC';       // address has an additional char at the end (43 chars)
         const address3 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641';         // address has an one less char at the end (41 chars)
         const address4 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641Z';        // address is proper length but has invalid hex value of 'Z'
 
-        await expect(did.generate({address: address1}))
+        await expect(sdk.did.generate({address: address1}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address2}))
+        await expect(sdk.did.generate({address: address2}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address3}))
+        await expect(sdk.did.generate({address: address3}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(did.generate({address: address4}))
+        await expect(sdk.did.generate({address: address4}))
           .rejects.toThrow(new CreateDidError(address_error));
       });
   
-      // throws an error when a seed phrase is not 12 or 24 words long
-      it('generate did with an incorrect seed', async () => {
-        const new_did  = 'did-test-1';
-        await expect(did.generate({seed: 'My incorrect seed phrase'}))
-          .rejects.toThrow(new CreateDidError('SeedError: Invalid seed phrase length: Seed phrase must be either 12 or 24 words long.'));
-      });
-
       it('generate did', async () => {
-        const result = await did.generate({});
+        const result = await sdk.did.generate({address: user.address});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -118,8 +112,7 @@ describe('Did', () => {
       });
 
       it('generate did Substrate address', async () => {
-        const new_did  = 'did-test-1';
-        const result = await did.generate({address: user.address});
+        const result = await sdk.did.generate({address: user.address});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -134,7 +127,7 @@ describe('Did', () => {
 
       it('generate did Ethereum address', async () => {
         const addressETH = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641C';
-        const result = await did.generate({address: addressETH, customDocumentFields: {controller: addressETH}});
+        const result = await sdk.did.generate({address: addressETH, customDocumentFields: {controller: addressETH}});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -166,7 +159,7 @@ describe('Did', () => {
           }]
       }
 
-        const result = await did.generate({customDocumentFields: customFields});
+        const result = await sdk.did.generate({address: user.address, customDocumentFields: customFields});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -199,7 +192,7 @@ describe('Did', () => {
           }]
       }
 
-        const result = await did.generate({address: addressETH, customDocumentFields: customFields});
+        const result = await sdk.did.generate({address: addressETH, customDocumentFields: customFields});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);

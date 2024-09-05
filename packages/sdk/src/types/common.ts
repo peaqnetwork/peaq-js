@@ -14,7 +14,7 @@ export interface SDKMetadata {
 }
 
 export interface Options {
-  baseUrl: string;
+  baseUrl?: string;
   seed?: string;
 }
 
