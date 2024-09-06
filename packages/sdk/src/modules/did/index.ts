@@ -48,7 +48,7 @@ type Service = {
   data?: string;
 }
 
-interface GenerateDidOptions {
+export interface GenerateDidOptions {
   address: Address;
   customDocumentFields?: CustomDocumentFields;
 }
@@ -85,7 +85,7 @@ interface RemoveDidOptions {
   seed?: string;
 }
 
-interface GenerateDidResult {
+export interface GenerateDidResult {
   value: string;
 }
 
@@ -155,7 +155,7 @@ export class Did extends Base {
    * Creates a new DID by adding a new attribute to the PEAQ DID registry.
    * 
    * @param options - The options for creating the DID.
-   * @returns block_hash - Hash that is searchable on a block explorer to see transaction.
+   * @returns CreateDidResult - Contains the block_hash of the executed transaction and unsubscribe() to terminate event listening.
    */
   public async create(
     options: CreateDidOptions,
@@ -245,6 +245,12 @@ export class Did extends Base {
     }
   }
 
+  /**
+   * Updates a previously created DID Document and overwrites the previously set data.
+   * 
+   * @param options: UpdateDidOptions = {address: Address, customDocumentFields?: CustomDocumentFields}
+   * @returns UpdateDidResult - Contains log information, block_hash of the executed transaction and unsubscribe() to terminate event listening.
+   */
   public async update(options: UpdateDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
   ): Promise<UpdateDidResult | null> {
@@ -298,7 +304,13 @@ export class Did extends Base {
     }
   }
 
-  // TODO add custom errors
+  
+  /**
+   * Removes a previously created DID Document.
+   * 
+   * @param options: UpdateDidOptions = {address: Address, customDocumentFields?: CustomDocumentFields}
+   * @returns RemoveDidResult - Contains log information, block_hash of the executed transaction and unsubscribe() to terminate event listening.
+   */
   public async remove(options: RemoveDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
   ): Promise<RemoveDidResult | null> {

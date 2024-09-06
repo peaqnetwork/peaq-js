@@ -6,8 +6,9 @@ import { unsubscribeRuntimeVersion } from '../../utils';
 import type { Options, SDKMetadata } from '../../types';
 
 import { Base } from '../base';
-import { Did } from '../did';
+import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
 import { RBAC } from "../rbac";
+
 
 /**
  * Main class for interacting with the SDK.
@@ -16,6 +17,7 @@ export class Main extends Base {
   private readonly _options: Options;
   protected override _api: ApiPromise;
   private _metadata: SDKMetadata;
+  
   public did: Did;
   public rbac: RBAC;
 
@@ -43,15 +45,15 @@ export class Main extends Base {
   }
 
   /**
-   * Creates a new offline instance of the SDK to use the generate function.
+   * Generates a hash of the DID Document without connecting to the chain.
    *
-   * @param None
-   * @returns The created offline instance of the SDK.
+   * @param GenerateDidOptions - The options for generating a DID.
+   * @returns The hash value of the generated DID document
    */
-    public static async createOfflineInstance(): Promise<Main> {
-      const sdk = new Main({});
-      return sdk;
-    }
+  public static async generateDidDocument(options: GenerateDidOptions): Promise<GenerateDidResult> {
+    const did = new Did();
+    return did.generate(options);
+  }
 
   /**
    * Connects the SDK to the network.
