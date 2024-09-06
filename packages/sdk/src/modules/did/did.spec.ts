@@ -37,7 +37,6 @@ describe('Did', () => {
   let user2: KeyringPair;
   let sdk: SDK;
   let sdk2: SDK;
-  let sdkOffline: SDK;
 
   beforeAll(async () => {
     keyring = new Keyring({ type: 'sr25519' });
@@ -48,7 +47,6 @@ describe('Did', () => {
     user2 = keyring2.addFromUri(SEED2);
     sdk = await SDK.createInstance({baseUrl: BASE_URL, seed: SEED});
     sdk2 = await SDK.createInstance({baseUrl: BASE_URL, seed: SEED2});
-    sdkOffline = await SDK.createOfflineInstance();
   }, 40000);
 
   afterAll(async () => {
@@ -67,19 +65,19 @@ describe('Did', () => {
         const address6 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12PI';  // address that is proper length but has I included
         const address7 = '5Df42mkztLtkksgQuLy4YV6hmhzdjYvDknoxHv1QBkaY12Pl';  // address that is proper length but has I included
   
-        await expect(sdkOffline.did.generate({address: address1}))
+        await expect(SDK.generateDidDocument({address: address1}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address2}))
+        await expect(SDK.generateDidDocument({address: address2}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address3}))
+        await expect(SDK.generateDidDocument({address: address3}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address4}))
+        await expect(SDK.generateDidDocument({address: address4}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address5}))
+        await expect(SDK.generateDidDocument({address: address5}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address6}))
+        await expect(SDK.generateDidDocument({address: address6}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address7}))
+        await expect(SDK.generateDidDocument({address: address7}))
           .rejects.toThrow(new CreateDidError(address_error));
       });
 
@@ -89,18 +87,18 @@ describe('Did', () => {
         const address3 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641';         // address has an one less char at the end (41 chars)
         const address4 = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641Z';        // address is proper length but has invalid hex value of 'Z'
 
-        await expect(sdkOffline.did.generate({address: address1}))
+        await expect(SDK.generateDidDocument({address: address1}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address2}))
+        await expect(SDK.generateDidDocument({address: address2}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address3}))
+        await expect(SDK.generateDidDocument({address: address3}))
           .rejects.toThrow(new CreateDidError(address_error));
-        await expect(sdkOffline.did.generate({address: address4}))
+        await expect(SDK.generateDidDocument({address: address4}))
           .rejects.toThrow(new CreateDidError(address_error));
       });
   
       it('generate did', async () => {
-        const result = await sdkOffline.did.generate({address: user.address});
+        const result = await SDK.generateDidDocument({address: user.address});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -108,7 +106,7 @@ describe('Did', () => {
       });
 
       it('generate did Substrate address', async () => {
-        const result = await sdkOffline.did.generate({address: user.address});
+        const result = await SDK.generateDidDocument({address: user.address});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -123,7 +121,7 @@ describe('Did', () => {
 
       it('generate did Ethereum address', async () => {
         const addressETH = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641C';
-        const result = await sdkOffline.did.generate({address: addressETH, customDocumentFields: {controller: addressETH}});
+        const result = await SDK.generateDidDocument({address: addressETH, customDocumentFields: {controller: addressETH}});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -155,7 +153,7 @@ describe('Did', () => {
           }]
       }
 
-        const result = await sdkOffline.did.generate({address: user.address, customDocumentFields: customFields});
+        const result = await SDK.generateDidDocument({address: user.address, customDocumentFields: customFields});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);
@@ -188,7 +186,7 @@ describe('Did', () => {
           }]
       }
 
-        const result = await sdkOffline.did.generate({address: addressETH, customDocumentFields: customFields});
+        const result = await SDK.generateDidDocument({address: addressETH, customDocumentFields: customFields});
         const did_hash = result.value;
         // check did hash return value: starts with '0x' and only contains hexadecimal values
         expect(did_hash.startsWith('0x')).toBe(true);

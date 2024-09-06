@@ -48,7 +48,7 @@ type Service = {
   data?: string;
 }
 
-interface GenerateDidOptions {
+export interface GenerateDidOptions {
   address: Address;
   customDocumentFields?: CustomDocumentFields;
 }
@@ -85,7 +85,7 @@ interface RemoveDidOptions {
   seed?: string;
 }
 
-interface GenerateDidResult {
+export interface GenerateDidResult {
   value: string;
 }
 

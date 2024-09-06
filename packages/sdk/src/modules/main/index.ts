@@ -6,15 +6,16 @@ import { unsubscribeRuntimeVersion } from '../../utils';
 import type { Options, SDKMetadata } from '../../types';
 
 import { Base } from '../base';
-import { Did } from '../did';
+import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
 import { RBAC } from "../rbac";
+
 
 /**
  * Main class for interacting with the SDK.
  */
 export class Main extends Base {
   private readonly _options: Options;
-  protected override _api: ApiPromise | undefined;
+  protected override _api: ApiPromise;
   private _metadata: SDKMetadata;
 
   public did: Did;
@@ -22,17 +23,6 @@ export class Main extends Base {
   static offlineMode: boolean;
 
   constructor(options: Options) {
-    if (Main.offlineMode){
-      // if in offline mode initialize to empty data
-      super();
-      this._options = {};
-      this._api = undefined;
-      this._metadata = {};
-
-      this.did = new Did();
-      this.rbac = new RBAC();
-    }
-    else {
       super();
       this._options = options;
       this._api = this._createApi(options);
@@ -40,7 +30,6 @@ export class Main extends Base {
 
       this.did = new Did(this._api, this._metadata);
       this.rbac = new RBAC(this._api, this._metadata);
-    }
   }
 
   /**
@@ -58,16 +47,15 @@ export class Main extends Base {
   }
 
   /**
-   * Creates a new offline instance of the SDK to use the generate function.
+   * Generates a hash of the DID Document without connecting to the chain.
    *
-   * @param None
-   * @returns The created offline instance of the SDK.
+   * @param GenerateDidOptions - The options for generating a DID.
+   * @returns The hash value of the generated DID document
    */
-    public static async createOfflineInstance(): Promise<Main> {
-      this.offlineMode = true;
-      const sdk = new Main({});
-      return sdk;
-    }
+  public static async generateDidDocument(options: GenerateDidOptions): Promise<GenerateDidResult> {
+    const did = new Did();
+    return did.generate(options);
+  }
 
   /**
    * Connects the SDK to the network.
