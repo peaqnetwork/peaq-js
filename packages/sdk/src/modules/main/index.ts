@@ -17,19 +17,18 @@ export class Main extends Base {
   private readonly _options: Options;
   protected override _api: ApiPromise;
   private _metadata: SDKMetadata;
-
+  
   public did: Did;
   public rbac: RBAC;
-  static offlineMode: boolean;
 
   constructor(options: Options) {
-      super();
-      this._options = options;
-      this._api = this._createApi(options);
-      this._metadata = {};
+    super();
+    this._options = options;
+    this._api = this._createApi(options);
+    this._metadata = {};
 
-      this.did = new Did(this._api, this._metadata);
-      this.rbac = new RBAC(this._api, this._metadata);
+    this.did = new Did(this._api, this._metadata);
+    this.rbac = new RBAC(this._api, this._metadata);
   }
 
   /**
@@ -39,7 +38,6 @@ export class Main extends Base {
    * @returns The created instance of the SDK.
    */
   public static async createInstance(options: Options): Promise<Main> {
-    this.offlineMode = false;
     await cryptoWaitReady();
     const sdk = new Main(options);
     await sdk.connect();
