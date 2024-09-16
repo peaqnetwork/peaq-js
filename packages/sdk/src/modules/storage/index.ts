@@ -31,24 +31,24 @@ type UpdateItemOptions = {
 }
 
 type AddItemResult = {
-    log: string;
+    message: string;
     block_hash: CodecHash;
     unsubscribe: () => void;
 }
 
 type RemoveItemResult = {
-    log: string;
+    message: string;
     block_hash: CodecHash;
     unsubscribe: () => void;
 }
 
 type GetItemResult = {
-    log: string;
+    data: string;
 }
 
 
 type UpdateItemResult = {
-    log: string;
+    message: string;
     block_hash: CodecHash;
     unsubscribe: () => void;
 }
@@ -102,7 +102,7 @@ export class Storage extends Base {
         });
         // is it necessary to add more verbose logging in return object?
         return {
-            log: `Successfully added the storage item type ${itemType} with item ${item} for the address ${keyPair.address}`,
+            message: `Successfully added the storage item type ${itemType} with item ${item} for the address ${keyPair.address}`,
             block_hash: eventData[0]?.blockHash as unknown as CodecHash,
             unsubscribe,
         };
@@ -142,7 +142,7 @@ export class Storage extends Base {
           
               // successfully removed the did of name __ from address machine address __
               return {
-                log: `Successfully removed the storage item type ${itemType} from address ${keyPair.address}`,
+                message: `Successfully removed the storage item type ${itemType} from address ${keyPair.address}`,
                 block_hash: eventData[0]?.blockHash as unknown as CodecHash,
                 unsubscribe,
               };
@@ -178,7 +178,7 @@ export class Storage extends Base {
             if (!item || item.isStorageFallback) return null;
             // is toHuman acceptable here? What if a simple string is not passed?
             return {
-                log: `${item.toHuman()}`,
+                data: `${item}`,
             };
         }
        catch (error) {
@@ -216,7 +216,7 @@ export class Storage extends Base {
             });
             // is it necessary to add more verbose logging in return object?
             return {
-                log: `Successfully updated the storage item type ${itemType} to the new item ${item} for the address ${keyPair.address}`,
+                message: `Successfully updated the storage item type ${itemType} to the new item ${item} for the address ${keyPair.address}`,
                 block_hash: eventData[0]?.blockHash as unknown as CodecHash,
                 unsubscribe,
             };
