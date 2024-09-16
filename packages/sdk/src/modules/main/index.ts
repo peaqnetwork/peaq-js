@@ -6,8 +6,9 @@ import { unsubscribeRuntimeVersion } from '../../utils';
 import type { Options, SDKMetadata } from '../../types';
 
 import { Base } from '../base';
-import { Did } from '../did';
+import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
 import { RBAC } from "../rbac";
+
 
 /**
  * Main class for interacting with the SDK.
@@ -16,6 +17,7 @@ export class Main extends Base {
   private readonly _options: Options;
   protected override _api: ApiPromise;
   private _metadata: SDKMetadata;
+  
   public did: Did;
   public rbac: RBAC;
 
@@ -40,6 +42,17 @@ export class Main extends Base {
     const sdk = new Main(options);
     await sdk.connect();
     return sdk;
+  }
+
+  /**
+   * Generates a hash of the DID Document without connecting to the chain.
+   *
+   * @param GenerateDidOptions - The options for generating a DID.
+   * @returns The hash value of the generated DID document
+   */
+  public static async generateDidDocument(options: GenerateDidOptions): Promise<GenerateDidResult> {
+    const did = new Did();
+    return did.generate(options);
   }
 
   /**

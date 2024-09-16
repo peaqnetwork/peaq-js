@@ -61,6 +61,5 @@ describe('Main', () => {
       expect(sdk['_api']?.isConnected).toBe(false);
     });
   });
-
 });
 
