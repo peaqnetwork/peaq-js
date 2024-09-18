@@ -1,13 +1,12 @@
-// Define CreateDidError as a child of the built-in Error class
+// DID custom errors
 export class CreateDidError extends Error {
   constructor(message: string) {
-    super(message); // Pass the message to the parent Error class
-    this.name = 'CreateDidError'; // Set the name property to the custom error type
-    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+    super(message);
+    this.name = 'CreateDidError';
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-// Define NameError as a child of CreateDidError
 export class NameError extends CreateDidError {
   constructor(message: string) {
     super(message);
@@ -16,7 +15,6 @@ export class NameError extends CreateDidError {
   }
 }
 
-// Define NameError as a child of CreateDidError
 export class SeedError extends CreateDidError {
   constructor(message: string) {
     super(message);
@@ -25,7 +23,6 @@ export class SeedError extends CreateDidError {
   }
 }
 
-// Define AddressError as a child of CreateDidError
 export class AddressError extends CreateDidError {
   constructor(message: string) {
     super(message);
@@ -34,35 +31,30 @@ export class AddressError extends CreateDidError {
   }
 }
 
-
-// Define CreateDidError as a child of the built-in Error class
 export class ReadDidError extends Error {
   constructor(message: string) {
-    super(message); // Pass the message to the parent Error class
-    this.name = 'ReadDidError'; // Set the name property to the custom error type
-    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+    super(message);
+    this.name = 'ReadDidError';
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-// Define CreateDidError as a child of the built-in Error class
 export class UpdateDidError extends Error {
   constructor(message: string) {
-    super(message); // Pass the message to the parent Error class
-    this.name = 'UpdateDidError'; // Set the name property to the custom error type
-    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+    super(message);
+    this.name = 'UpdateDidError';
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-// Define CreateDidError as a child of the built-in Error class
 export class NoCustomFieldsError extends UpdateDidError {
   constructor(message: string) {
-    super(message); // Pass the message to the parent Error class
-    this.name = 'NoCustomFieldsError'; // Set the name property to the custom error type
-    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+    super(message);
+    this.name = 'NoCustomFieldsError';
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
-// Define CreateDidError as a child of the built-in Error class
 export class DidNotFoundError extends UpdateDidError {
   constructor(message: string) {
     super(message); // Pass the message to the parent Error class
@@ -71,11 +63,58 @@ export class DidNotFoundError extends UpdateDidError {
   }
 }
 
-// Define CreateDidError as a child of the built-in Error class
 export class RemoveDidError extends Error {
   constructor(message: string) {
     super(message); // Pass the message to the parent Error class
     this.name = 'RemoveDidError'; // Set the name property to the custom error type
+    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+  }
+}
+
+
+
+
+// Storage Custom Errors
+export class StorageError extends Error {
+  constructor(message: string) {
+    super(message); // Pass the message to the parent Error class
+    this.name = 'StorageError'; // Set the name property to the custom error type
+    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+  }
+}
+
+
+// Define CreateDidError as a child of the built-in Error class
+export class ItemTypeError extends StorageError {
+  constructor(message: string) {
+    super(message); // Pass the message to the parent Error class
+    this.name = 'ItemTypeError'; // Set the name property to the custom error type
+    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+  }
+}
+
+// Define CreateDidError as a child of the built-in Error class
+export class ItemError extends StorageError {
+  constructor(message: string) {
+    super(message); // Pass the message to the parent Error class
+    this.name = 'ItemError'; // Set the name property to the custom error type
+    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+  }
+}
+
+// Define CreateDidError as a child of the built-in Error class
+export class StorageAddressError extends StorageError {
+  constructor(message: string) {
+    super(message); // Pass the message to the parent Error class
+    this.name = 'StorageAddressError'; // Set the name property to the custom error type
+    Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
+  }
+}
+// Define CreateDidError as a child of the built-in Error class
+export class StorageSeedError extends StorageError {
+  constructor(message: string) {
+    super(message); // Pass the message to the parent Error class
+    this.name = 'StorageSeedError'; // Set the name property to the custom error type
     Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
   }
 }
