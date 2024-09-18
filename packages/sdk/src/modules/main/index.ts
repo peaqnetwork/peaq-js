@@ -8,6 +8,7 @@ import type { Options, SDKMetadata } from '../../types';
 import { Base } from '../base';
 import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
 import { RBAC } from "../rbac";
+import { Storage } from "../storage";
 
 
 /**
@@ -20,6 +21,7 @@ export class Main extends Base {
   
   public did: Did;
   public rbac: RBAC;
+  public storage: Storage;
 
   constructor(options: Options) {
     super();
@@ -29,6 +31,7 @@ export class Main extends Base {
 
     this.did = new Did(this._api, this._metadata);
     this.rbac = new RBAC(this._api, this._metadata);
+    this.storage = new Storage(this._api, this._metadata);
   }
 
   /**
