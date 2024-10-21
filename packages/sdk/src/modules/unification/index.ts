@@ -3,13 +3,28 @@ import { ApiPromise } from '@polkadot/api';
 import { decodeAddress } from '@polkadot/keyring';
 import type { ISubmittableResult } from '@polkadot/types/types';
 
+import { ChainIdError, CreateKeyBindError, ClaimAccountError, GenerateSignatureError } from '../../utils/errors';
 import type { SDKMetadata } from '../../types';
 import { ethers, Wallet } from "ethers";
 
 interface ClaimAccountOptions {
-  substrateSeed: string,
-  ethPrivate: string
+  network: string;
+  substrateSeed: string;
+  ethPrivate: string;
 }
+
+interface ClaimAccountResult {
+  message: string;
+  evm: string;
+  substrate: string;
+}
+
+enum ChainID {
+  AGUNG = 9990,
+  KREST = 2241,
+  PEAQ = 3338,
+}
+
 
 export class Unification extends Base {
     constructor(
@@ -20,31 +35,29 @@ export class Unification extends Base {
       super();
     }
 
-  // TODO just return the ethereum address?
-  // How does the user know what their mnenonmic phrase and private key are...
-  //  - Can we safely return??
-
-  public async claimAccount(options: ClaimAccountOptions, statusCallback?: (result: ISubmittableResult) => void | Promise<void>): Promise<string> {
+  /**
+   * Binds a SS58 Substrate wallet to a newly created H160 Ethereum wallet using the address unification pallet peaq provides.
+   * Make sure the H160 wallet is new and has no transactions.
+   * 
+   * @param options ClaimAccountOptions - The options for binding the addresses.
+   * @returns CreateDidResult - Contains the block_hash of the executed transaction and unsubscribe() to terminate event listening.
+   */
+  public async claimAccount(options: ClaimAccountOptions, statusCallback?: (result: ISubmittableResult) => void | Promise<void>): Promise<ClaimAccountResult> {
     try {
         const api = this._getApi();
 
-        const { substrateSeed,  ethPrivate} = options;
-        if (!substrateSeed) {
-          throw new Error("Error: No substrate private key provided.");
-        }
-        if (!ethPrivate) {
-          throw new Error("Error: No ethereum private key provided.");
-        }
+        const { network, substrateSeed, ethPrivate} = options;
+        if (!network) throw new Error("Error: No network provided.");
+        if (!substrateSeed) throw new Error("Error: No substrate private key provided.");
+        if (!ethPrivate) throw new Error("Error: No ethereum private key provided.");
 
-        const keyPair = this._metadata?.pair || this._getKeyPair(substrateSeed);
+        const keyPair = this._getKeyPair(substrateSeed);
         const ss58Address = keyPair.address;
 
-        // create wallet from ETH private key
         const signer = new ethers.Wallet(ethPrivate);
         const evmAddress = signer.address;
 
-        const ethSignature = await this._createKeyBind(ss58Address, signer);
-        // console.log(ethSignature);
+        const ethSignature = await this._createKeyBind(network, ss58Address, signer);
 
         const attributeExtrinsic = api.tx?.['addressUnification']?.['claimAccount'](
           evmAddress,
@@ -58,61 +71,69 @@ export class Unification extends Base {
             statusCallback(result as unknown as ISubmittableResult);
         });
 
-        console.log(eventData);
-
-        return `Successfully unified the evm address of ${evmAddress} to the substrate address of ${ss58Address}`;
+        return {
+          message: "Address Unification Successful.",
+          evm:  `${evmAddress}`,
+          substrate: `${ss58Address}`
+      }
     } catch (error) {
-      throw new Error(`${error}`);
+      throw new ClaimAccountError(`${error}`);
     }
   }
 
-
-  protected async _createKeyBind(ss58Address: string, signer: Wallet): Promise <string>{
+  protected async _createKeyBind(network: string, ss58Address: string, signer: Wallet): Promise <string>{
     try {
       const api = this._getApi();
 
-      // Case where we connect a previously known ethereum wallet to their current substrate address
-      const chainMap = new Map();
-      chainMap.set("Agung-parachain", 9990);
-      chainMap.set("krest-network", 2241);
-      chainMap.set("peaq-network", 3338);
-
-      // derive chain id -> is there a better way to get chainId from api than than creating a mapping?
-      const chain = api.runtimeChain.toHuman();
-      const chainId = chainMap.get(chain);
-      console.log(chainId);
+      const chainId = await this._getChainId(network);
 
       const signature = await this._generateSignature(
         signer,
         ss58Address,
-        chainId
+        chainId.toString()
       );
-      console.log("Generated signature:", signature);
+      
       return signature;
 
     } catch (error){
-      throw new Error(`${error}`);
+      throw new CreateKeyBindError(`${error}`);
     }
   }
 
   protected async _generateSignature(signer: Wallet, ss58Address: string, chainId: string) {
-    const api = this._getApi();
-    const blockHash = await api.rpc.chain.getBlockHash(0); 
-    
-    return await signer.signTypedData(
-      {
-        name: "Peaq EVM claim",
-        version: "1",
-        chainId: chainId,
-        salt: blockHash,
-      },
-      {
-        Transaction: [{ type: "bytes", name: "substrateAddress" }],
-      },
-      {
-        substrateAddress: decodeAddress(ss58Address),
-      }
-    );
+    try {
+      const api = this._getApi();
+      const blockHash = await api.rpc.chain.getBlockHash(0); 
+      
+      return await signer.signTypedData(
+        {
+          name: "Peaq EVM claim",
+          version: "1",
+          chainId: chainId,
+          salt: blockHash,
+        },
+        {
+          Transaction: [{ type: "bytes", name: "substrateAddress" }],
+        },
+        {
+          substrateAddress: decodeAddress(ss58Address),
+        }
+      );
+    } catch (error){
+        throw new GenerateSignatureError(`${error}`);
+    }
   }
 
+  protected async _getChainId(network: string): Promise<number> {
+    switch (network.toUpperCase()) {
+      case "AGUNG":
+        return ChainID.AGUNG;
+      case "KREST":
+        return ChainID.KREST;
+      case "PEAQ":
+        return ChainID.PEAQ;
+    }
+    throw new ChainIdError(`Network not found. Make sure you correctly set your network parameter to either agung, krest, or 
+      peaq based on the base url set during SDK initialization.`)
+  }
 }
