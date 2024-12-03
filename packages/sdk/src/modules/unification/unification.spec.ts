@@ -6,11 +6,11 @@ import { Main as SDK } from '../main';
 import dotenv from 'dotenv';
 dotenv.config(); // Load variables from .env file
 
-const SEED = process.env['SEED'] as string;
-const ETH_PRIVATE = process.env['ETH_PRIVATE'] as string;
+const SEED = process.env['SEED3'] as string;
+const ETH_PRIVATE = process.env['ETH_PRIVATE2'] as string;
 const BASE_URL = process.env['BASE_URL'] as string;
-const EVM_ADDRESS = process.env['EVM_ADDRESS'] as string;
-const SUBSTRATE_ADDRESS = process.env['SUBSTRATE_ADDRESS'] as string;
+const EVM_ADDRESS = process.env['EVM_ADDRESS2'] as string;
+const SUBSTRATE_ADDRESS = process.env['SUBSTRATE_ADDRESS2'] as string;
 
 
 /**
@@ -41,19 +41,19 @@ describe('Unification', () => {
   describe('create binds', () => {
     it('incorrect network name', async () => {
       await expect(sdk.unification.claimAccount({network: "random", substrateSeed: SEED, ethPrivate: ETH_PRIVATE}))
-      .rejects.toThrow(new Error(`CreateKeyBindError: ChainIdError: Network not found. Make sure you correctly set your network parameter to either agung, krest, or 
+      .rejects.toThrow(new Error(`CreateKeyBindError: ChainIdError: Network mismatch. Make sure you correctly set your network parameter to either agung, krest, or 
       peaq based on the base url set during SDK initialization.`));
     }, 50000);
     // works when I create an ETH wallet from scratch that has no previous transactions on the network
     // and when you first setup an initial keybind... make sure the baseUrl that you initialize to matches the network you are claiming the account with
     it('known ss58 to newly created known h160 bind', async () => {
-      const result = await sdk.unification.claimAccount({network: "agung", substrateSeed: SEED, ethPrivate: ETH_PRIVATE});
+      const result = await sdk.unification.claimAccount({network: "krest", substrateSeed: SEED, ethPrivate: ETH_PRIVATE});
       expect(result.message).toBe("Address Unification Successful.");
       expect(result.evm).toBe(EVM_ADDRESS);
       expect(result.substrate).toBe(SUBSTRATE_ADDRESS);
     }, 80000);
     it('Expect an error when a previous keybind has already been created', async () => {
-      await expect(sdk.unification.claimAccount({network: "agung", substrateSeed: SEED, ethPrivate: ETH_PRIVATE}))
+      await expect(sdk.unification.claimAccount({network: "krest", substrateSeed: SEED, ethPrivate: ETH_PRIVATE}))
       .rejects.toThrow(new Error(`Error: AccountIdHasMapped for addressUnification.`));
     }, 50000);
   })

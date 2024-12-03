@@ -46,7 +46,7 @@ export class Unification extends Base {
     try {
         const api = this._getApi();
 
-        const { network, substrateSeed, ethPrivate} = options;
+        const { network, substrateSeed, ethPrivate } = options;
         if (!network) throw new Error("Error: No network provided.");
         if (!substrateSeed) throw new Error("Error: No substrate private key provided.");
         if (!ethPrivate) throw new Error("Error: No ethereum private key provided.");
@@ -77,6 +77,7 @@ export class Unification extends Base {
           substrate: `${ss58Address}`
       }
     } catch (error) {
+      if (typeof error === 'object' && error !== null && 'data' in error) throw new ClaimAccountError(`${error.data}`);
       throw new ClaimAccountError(`${error}`);
     }
   }
@@ -85,7 +86,17 @@ export class Unification extends Base {
     try {
       const api = this._getApi();
 
-      const chainId = await this._getChainId(network);
+      // get chain name from api to check against what the user manually set
+      const properties = await api.rpc.system.properties();
+      const readable = properties.toHuman();
+
+      // want to make sure the set network is a known enum, and the set network is the same as the api metadata
+      if (ChainID[network.toUpperCase() as keyof typeof ChainID] == undefined 
+            || (readable["tokenSymbol"] as string[])[0] != network.toUpperCase()) {
+        throw new ChainIdError(`Network mismatch. Make sure you correctly set your network parameter to either agung, krest, or 
+      peaq based on the base url set during SDK initialization.`);
+      }
+      const chainId = ChainID[network.toUpperCase() as keyof typeof ChainID];
 
       const signature = await this._generateSignature(
         signer,
@@ -103,8 +114,8 @@ export class Unification extends Base {
   protected async _generateSignature(signer: Wallet, ss58Address: string, chainId: string) {
     try {
       const api = this._getApi();
-      const blockHash = await api.rpc.chain.getBlockHash(0); 
-      
+      const blockHash = await api.rpc.chain.getBlockHash(0);
+
       return await signer.signTypedData(
         {
           name: "Peaq EVM claim",
@@ -124,16 +135,4 @@ export class Unification extends Base {
     }
   }
 
-  protected async _getChainId(network: string): Promise<number> {
-    switch (network.toUpperCase()) {
-      case "AGUNG":
-        return ChainID.AGUNG;
-      case "KREST":
-        return ChainID.KREST;
-      case "PEAQ":
-        return ChainID.PEAQ;
-    }
-    throw new ChainIdError(`Network not found. Make sure you correctly set your network parameter to either agung, krest, or 
-      peaq based on the base url set during SDK initialization.`)
-  }
 }

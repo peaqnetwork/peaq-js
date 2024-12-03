@@ -140,7 +140,7 @@ export class CreateKeyBindError extends Error {
 export class GenerateSignatureError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'CreateKeyBindError';
+    this.name = 'GenerateSignatureError';
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
@@ -148,7 +148,7 @@ export class GenerateSignatureError extends Error {
 export class ClaimAccountError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'CreateKeyBindError';
+    this.name = 'ClaimAccountError';
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
