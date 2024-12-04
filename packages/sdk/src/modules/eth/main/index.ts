@@ -1,16 +1,17 @@
 import { Base } from '../../base';
-import { Did } from '../did';
+import { Eth_Did } from '../did';
 
 
 /**
  * Main class for interacting with the SDK on the Ethereum side.
  */
 export class Main extends Base {
-  public did: Did;
+// TODO add rbac and storage when developed
+  public did: Eth_Did;
 
   constructor() {
     super();
-    this.did = new Did();
+    this.did = new Eth_Did();
   }
 
 
