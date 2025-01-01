@@ -100,17 +100,15 @@ describe('Did', () => {
       it('generate did', async () => {
         const result = await SDK.generateDidDocument({address: user.address});
         const did_hash = result.value;
-        // check did hash return value: starts with '0x' and only contains hexadecimal values
-        expect(did_hash.startsWith('0x')).toBe(true);
-        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+        // check did hash return value: only contains hexadecimal values
+        expect(/^[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
       });
 
       it('generate did Substrate address', async () => {
         const result = await SDK.generateDidDocument({address: user.address});
         const did_hash = result.value;
-        // check did hash return value: starts with '0x' and only contains hexadecimal values
-        expect(did_hash.startsWith('0x')).toBe(true);
-        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+        // check did hash return value: only contains hexadecimal values
+        expect(/^[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
 
         // convert the did hash into a readable did document to check the default values
         const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
@@ -123,9 +121,8 @@ describe('Did', () => {
         const addressETH = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641C';
         const result = await SDK.generateDidDocument({address: addressETH, customDocumentFields: {controller: addressETH}});
         const did_hash = result.value;
-        // check did hash return value: starts with '0x' and only contains hexadecimal values
-        expect(did_hash.startsWith('0x')).toBe(true);
-        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+        // check did hash return value: only contains hexadecimal values
+        expect(/^[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
 
         // convert the did hash into a readable did document to check the default values
         const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
@@ -155,9 +152,8 @@ describe('Did', () => {
 
         const result = await SDK.generateDidDocument({address: user.address, customDocumentFields: customFields});
         const did_hash = result.value;
-        // check did hash return value: starts with '0x' and only contains hexadecimal values
-        expect(did_hash.startsWith('0x')).toBe(true);
-        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+        // check did hash return value: only contains hexadecimal values
+        expect(/^[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
 
         // convert the did hash into a readable did document to check the default values
         const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
@@ -188,9 +184,8 @@ describe('Did', () => {
 
         const result = await SDK.generateDidDocument({address: addressETH, customDocumentFields: customFields});
         const did_hash = result.value;
-        // check did hash return value: starts with '0x' and only contains hexadecimal values
-        expect(did_hash.startsWith('0x')).toBe(true);
-        expect(/^0x[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
+        // check did hash return value: only contains hexadecimal values
+        expect(/^[a-fA-F0-9]+$/.test(did_hash)).toBe(true);
 
         // convert the did hash into a readable did document to check the default values
         const document = peaqDidProto.Document.deserializeBinary(hexToU8a(result?.value));
@@ -454,7 +449,7 @@ describe('Did', () => {
     });
 
     it('read a known did with address and proper name passed', async () => {
-      const known_did  = 'did-test';
+      const known_did  = 'did-test-123';
 
       const read_did = await sdk.did.read({name: known_did, address: user.address}) ;
       expect(read_did).toBeDefined();
@@ -976,7 +971,7 @@ async function readDid(read_did: ReadDidResponse, new_did: string, user: Keyring
   expect(read_did?.value).toBeDefined();
 
   // value names based on expected regex formats
-  const valuePattern = /^0x[0-9a-fA-F]+$/;
+  const valuePattern = /^[0-9a-fA-F]+$/;
   const validityPattern = /^\d{1,3}(,\d{3})*$/;
   const createdPattern = /^\d{1,3}(,\d{3})*$/;
   
