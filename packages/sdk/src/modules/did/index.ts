@@ -2,7 +2,7 @@ import * as peaqDidProto from 'peaq-did-proto-js';
 import { Attribute } from '@peaq-network/types/interfaces';
 import { ApiPromise } from '@polkadot/api';
 import { decodeAddress } from '@polkadot/util-crypto';
-import { u8aToHex } from '@polkadot/util';
+import { u8aToHex, hexToU8a } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
 
@@ -234,7 +234,8 @@ export class Did extends Base {
 
       if (!did || did.isStorageFallback) return null;
 
-      const document = peaqDidProto.Document.deserializeBinary(did?.value);
+      const didValue = String(did.toHuman()['value']);
+      const document = peaqDidProto.Document.deserializeBinary(hexToU8a(didValue));
 
       return {
         ...did.toHuman(),
@@ -432,7 +433,7 @@ export class Did extends Base {
     return documentService;
   }
 
- private _generateDidDocument(options: DidDocumentOptions): `0x${string}` {
+ private _generateDidDocument(options: DidDocumentOptions): string {
     const { didAccountAddress, didControllerAddress, customDocumentFields } = options;
 
     let document = new peaqDidProto.Document();
@@ -480,10 +481,14 @@ export class Did extends Base {
     }
 
     const bytes = document.serializeBinary();
-    return u8aToHex(bytes);
+    const hexString = u8aToHex(bytes);
+
+    // remove '0x' prefix if present
+    const hash = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
+    return hash;
   }
 
-  private _updateDidDocument(options: UpdateDidDocumentOptions): `0x${string}` {
+  private _updateDidDocument(options: UpdateDidDocumentOptions): string {
     const { didAccountAddress, didControllerAddress, customDocumentFields, oldDocument } = options;
     
     let newDocument = new peaqDidProto.Document();
@@ -544,7 +549,11 @@ export class Did extends Base {
     }
 
     const bytes = newDocument.serializeBinary();
-    return u8aToHex(bytes);
+    const hexString = u8aToHex(bytes);
+
+    // remove '0x' prefix if present
+    const hash = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
+    return hash;
   }
 
   private _setController(customDocumentFields: UpdateDocumentFields, newDocument: peaqDidProto.Document){
