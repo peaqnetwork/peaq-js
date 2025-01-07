@@ -118,3 +118,37 @@ export class StorageSeedError extends StorageError {
     Object.setPrototypeOf(this, new.target.prototype); // Restore the prototype chain
   }
 }
+
+
+// Address Unification Errors
+export class ChainIdError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ChainIdError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class CreateKeyBindError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CreateKeyBindError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class GenerateSignatureError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GenerateSignatureError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+export class ClaimAccountError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ClaimAccountError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}

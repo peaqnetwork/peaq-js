@@ -7,6 +7,7 @@ import type { Options, SDKMetadata } from '../../types';
 
 import { Base } from '../base';
 import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
+import { Unification } from "../unification";
 import { RBAC } from "../rbac";
 import { Storage } from "../storage";
 
@@ -20,6 +21,7 @@ export class Main extends Base {
   private _metadata: SDKMetadata;
   
   public did: Did;
+  public unification: Unification;
   public rbac: RBAC;
   public storage: Storage;
 
@@ -30,6 +32,7 @@ export class Main extends Base {
     this._metadata = {};
 
     this.did = new Did(this._api, this._metadata);
+    this.unification = new Unification(this._api, this._metadata);
     this.rbac = new RBAC(this._api, this._metadata);
     this.storage = new Storage(this._api, this._metadata);
   }
