@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { w3cwebsocket as WebSocket } from 'websocket';
 
 const main = (): void => {
-  const endpoint = process.env?.['NX_NETWORK_BASE_URL'] || 'wss://rpcpc1-qa.agung.peaq.network';
+  const endpoint = process.env?.['NX_NETWORK_BASE_URL'] || 'wss://wss-async.agung.peaq.network';
   console.log('Connecting to ', endpoint);
   const ws = new WebSocket(endpoint);
   ws.onopen = (): void => {
