@@ -7,9 +7,9 @@ import type { Options, SDKMetadata } from '../../types';
 
 import { Base } from '../base';
 import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
-import { RBAC } from "../rbac";
-import { Storage } from "../storage";
-
+import { RBAC } from '../rbac';
+import { Storage } from '../storage';
+import { Ptp, PtpOptions, type SyncResult } from '../ptp';
 
 /**
  * Main class for interacting with the SDK.
@@ -18,10 +18,11 @@ export class Main extends Base {
   private readonly _options: Options;
   protected override _api: ApiPromise;
   private _metadata: SDKMetadata;
-  
+
   public did: Did;
   public rbac: RBAC;
   public storage: Storage;
+  private ptp: Ptp;
 
   constructor(options: Options) {
     super();
@@ -32,6 +33,7 @@ export class Main extends Base {
     this.did = new Did(this._api, this._metadata);
     this.rbac = new RBAC(this._api, this._metadata);
     this.storage = new Storage(this._api, this._metadata);
+    this.ptp = new Ptp();
   }
 
   /**
@@ -53,7 +55,9 @@ export class Main extends Base {
    * @param GenerateDidOptions - The options for generating a DID.
    * @returns The hash value of the generated DID document
    */
-  public static async generateDidDocument(options: GenerateDidOptions): Promise<GenerateDidResult> {
+  public static async generateDidDocument(
+    options: GenerateDidOptions
+  ): Promise<GenerateDidResult> {
     const did = new Did();
     return did.generate(options);
   }
@@ -119,5 +123,19 @@ export class Main extends Base {
       noInitWarn: true,
       ...defaultOptions,
     });
+  }
+
+  /**
+   * Subscribes to PTP time synchronization updates
+   * @param options - PTP configuration options
+   * @param callback - Function to handle synchronization updates
+   * @returns Unsubscribe function
+   */
+  public static subscribeToPtp(
+    options: PtpOptions,
+    callback: (result: SyncResult) => void
+  ): () => void {
+    const ptp = new Ptp();
+    return ptp.subscribe(options, callback);
   }
 }
