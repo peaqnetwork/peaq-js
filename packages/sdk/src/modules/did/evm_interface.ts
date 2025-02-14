@@ -40,7 +40,7 @@ interface RemoveDidOptions {
     address: Address;
   }
 
-interface EvmTransaction {
+export interface EvmTransaction {
     to: string;
     data: string;
 }
@@ -54,7 +54,41 @@ export class DIDInterfaceEVM {
       this.baseUrl = baseUrl;
     }
 
-    public async create(options: CreateDidOptions) {
+    public async create(options: CreateDidOptions): Promise<EvmTransaction> {
+        
+        const { name, address, customDocumentFields } = options;
+        this._checkEvmAddress(address);
+
+        if (!ethers.isAddress(address)) {
+            throw new Error(`${address} is not a valid EVM address`);
+        }
+
+        const createDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.ADD_ATTRIBUTE)).substring(0, 10);
+
+        const didAddress = address;
+        const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
+
+        const didDocHash = await this.did.generate({ address, customDocumentFields });
+        const didVal = ethers.hexlify(ethers.toUtf8Bytes(didDocHash.value));
+        const validityFor = 0;
+
+        // // to log document that is being added can uncomment below (useful for development debugging)
+        // const document = peaqDidProto.Document.deserializeBinary(hexToU8a(didDocHash.value));
+        // console.log(document.toObject());
+
+        const params = this.abiCoder.encode(
+            ["address", "bytes", "bytes", "uint32"],
+            [didAddress, didName, didVal, validityFor]
+        );
+
+        let payload = params.replace("0x", createDidFunctionSelector);
+
+        const tx: EvmTransaction = {
+            to: PrecompileAddresses.DID,
+            data: payload
+        };
+
+        return tx;
     }
     public async read(options: ReadDidOptions)  {
     }

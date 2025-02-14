@@ -12,6 +12,8 @@ import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../.
 import { CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
 
+import { DIDInterfaceEVM, EvmTransaction } from './evm_interface';
+
 export interface CustomDocumentFields {
   prefix?: string,
   controller?: string,
@@ -160,9 +162,8 @@ export class Did extends Base {
   public async create(
     options: CreateDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<CreateDidResult> {
+  ): Promise<CreateDidResult | EvmTransaction> {
     try {
-      const api = this._getApi();
 
       const { name, address = '', seed = '', customDocumentFields } = options;
 
@@ -170,6 +171,16 @@ export class Did extends Base {
       if (seed !== '') this._checkSeed(seed);
       if (address !== '') this._checkAddress(address);
 
+      // EVM tx logic if chainType is set to EVM
+      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        // address is required for EVM since it is not stored with the key-pair
+        if (!address) throw new Error("Address is required when creating an EVM transaction since an Account is never stored from seed.");
+          const evm = new DIDInterfaceEVM(this._metadata.baseUrl);
+          return await evm.create({name: name,  address: address, customDocumentFields: customDocumentFields})
+      }
+
+      // Create and send substrate transaction
+      const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
