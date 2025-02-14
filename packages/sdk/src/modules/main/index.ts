@@ -132,8 +132,7 @@ export class Main extends Base {
     }
     // Sets up a substrate api connection if chain_id is set or undefined (defaults to this)
     else if (this._metadata.chainType == "SUBSTRATE" || this._metadata.chainType == undefined ) {
-      const { baseUrl } = options || this._options;
-      const provider = new WsProvider(baseUrl);
+      const provider = new WsProvider(this._metadata.baseUrl);
       return new ApiPromise({
         provider,
         noInitWarn: true,
@@ -160,8 +159,8 @@ export class Main extends Base {
       }
       const signer = this._isEvmWalletInputValid(options.seed, provider);
       const response = await signer.sendTransaction(options.tx);
-      const receipt = await response.wait(); // TODO figure out why it is hanging right here.
-      return receipt
+      // const receipt = await response.wait().finally(); // TODO figure out why it is hanging right here.
+      return response
     }
     else{
       throw new Error(`Chain type of ${options.chainType} is not supported when trying to send EVM transactions`)
@@ -176,7 +175,7 @@ export class Main extends Base {
     } catch (error) {
         try {
              // For private key
-            return new ethers.Wallet(key, provider);;
+            return new ethers.Wallet(key, provider);
         } catch (error) {
             throw new Error("Input is neither a valid mnemonic nor a private key");
         }

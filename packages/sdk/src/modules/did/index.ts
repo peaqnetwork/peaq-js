@@ -91,7 +91,7 @@ export interface GenerateDidResult {
   value: string;
 }
 
-interface CreateDidResult {
+export interface CreateDidResult {
   block_hash: CodecHash;
   unsubscribe: () => void;
 }

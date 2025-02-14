@@ -4,25 +4,47 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import { hexToU8a,  } from '@polkadot/util';
 import { cryptoWaitReady } from '@polkadot/util-crypto';
 import type { DidDocument, ReadDidResponse } from '../../types';
-import { CustomDocumentFields } from './index';
+import { CustomDocumentFields, CreateDidResult } from './index';
 import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
 import { Main as SDK } from '../main';
+import { EvmTransaction } from './evm_interface';
 
+
+import { ethers } from 'ethers';
 
 /**
  * Global variables used to initialize the BASE_URL, and seed phrases that are used to create wallets.
  * 
  * Address error used multiple times, so it is initialized here.
  */
-const BASE_URL = process.env['BASE_URL'] as string;
+const BASE_URL_HTTPS = process.env['BASE_URL_HTTPS'] as string;
+const BASE_URL_WSS = process.env['BASE_URL_WSS'] as string;
+
 const SEED = process.env['SEED'] as string;
 const SEED2 = process.env['SEED2'] as string;
+const SUBSTRATE_ADDRESS = process.env['SUBSTRATE_ADDRESS'] as string;
 const EVM_ADDRESS = process.env['EVM_ADDRESS'] as string;
+const ETH_PRIVATE = process.env['ETH_PRIVATE'] as string;
 const PRECOMPILE_DID = process.env['PRECOMPILE_DID'] as string;
 
 const address_error = `AddressError: Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
         SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
         40 hexadecimal characters (0-9, a-f, A-F) with no characters omitted.`
+
+
+const abiCoder = new ethers.AbiCoder();
+enum FunctionSignaturesPrefix {
+  ADD_ATTRIBUTE = '0xcc4a70ca'
+}
+
+
+type ExpectedEvmCreateDid = {
+  address: string;
+  didName: string;
+  customFields: CustomDocumentFields | null;
+  validityFor: number;
+} 
+
 /**
  * Tests functionality in the sdk for DID operations. Before all tests, creates a new instance of
  * user Keyring to execute the operations. Creates, Reads, Updates, and Removes DID by calling
@@ -31,35 +53,120 @@ const address_error = `AddressError: Incorrect Substrate SS58/Ethereum Address f
  * This flow ensures that a user needs less than .2 token to execute all tests and funds will be returned back.
  */
 describe('Did', () => {
-  let keyring: Keyring;
-  let keyring2: Keyring;
-  let user: KeyringPair;
-  let user2: KeyringPair;
-  let sdk: SDK;
-  let sdk2: SDK;
-
-  beforeAll(async () => {
-    keyring = new Keyring({ type: 'sr25519' });
-    keyring2 = new Keyring({ type: 'sr25519' });
-    await cryptoWaitReady();
-    user = keyring.addFromUri(SEED);
-    await cryptoWaitReady();
-    user2 = keyring2.addFromUri(SEED2);
-    sdk = await SDK.createInstance({baseUrl: BASE_URL, seed: SEED});
-    sdk2 = await SDK.createInstance({baseUrl: BASE_URL, seed: SEED2});
-  }, 40000);
-
-  afterAll(async () => {
-  });
-
   /**
    * Tests EVM compatible sdk functions for DIDs
    */
   describe('EVM Tests', () => {
-    /// TODO
+    /// TODO -> test when HTTPS vs WSS url is sent. HTTPS rpc is not working right now for agung
+
     describe('create()', () => {
-      it('', async () => {
+      it('EVM chain fail when no address passed in create()', async () => {
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        await expect(sdk.did.create({name: "evm-test"}))
+          .rejects.toThrow(new Error("Error: Address is required when creating an EVM transaction since an Account is never stored from seed."));
       });
+      it('EVM chain fail when substrate address passed.', async () => {
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        await expect(sdk.did.create({name: "evm-test", address: SUBSTRATE_ADDRESS}))
+          .rejects.toThrow(new Error(`Error: ${SUBSTRATE_ADDRESS} is not a valid EVM address`));
+      });
+      it('create an ethereum transaction', async () => {
+        const didName = "evm-test"
+        // create an object of what is to be expected in the `data` of the transaction
+        const expected: ExpectedEvmCreateDid = {
+          address: EVM_ADDRESS,
+          didName: didName,
+          customFields: null,
+          validityFor: 0
+        }
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
+      });
+      it('create an ethereum transaction with custom fields', async () => {
+        const didName = "evm-test"
+        // create the custom fields for the DID Document
+        const customFields: CustomDocumentFields = {
+          prefix: 'custom_name',
+          verifications: [{
+            type: "Ed25519VerificationKey2020"
+          }],
+          signature: {
+            type: "Ed25519VerificationKey2020",
+            issuer: '123',
+            hash: '0x123'
+          },
+          services: [{
+            id: 'machine-identifier-1',
+            type: 'Machine-1',
+            serviceEndpoint: 'http://localhost:8080/ipfs/'
+          }]
+        }
+        // create an object of what is to be expected in the `data` of the transaction
+        const expected: ExpectedEvmCreateDid = {
+          address: EVM_ADDRESS,
+          didName: didName,
+          customFields: customFields,
+          validityFor: 0
+        }
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS, customDocumentFields: customFields}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
+      });
+      it('create and send ethereum tx to chain no custom fields', async () => {
+        const didName = "evm-test-10004"
+        // create an object of what is to be expected in the `data` of the transaction
+        const expected: ExpectedEvmCreateDid = {
+          address: EVM_ADDRESS,
+          didName: didName,
+          customFields: null,
+          validityFor: 0
+        }
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
+        // send to the chain
+        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+        // TODO add a read function to test
+        console.log(receipt);
+      }, 50000);
+      it('create and send ethereum tx to chain with custom fields', async () => {
+        const didName = "evm-test-10005"
+        // create the custom fields for the DID Document
+        const customFields: CustomDocumentFields = {
+          prefix: 'custom_name',
+          verifications: [{
+            type: "Ed25519VerificationKey2020"
+          }],
+          signature: {
+            type: "Ed25519VerificationKey2020",
+            issuer: '123',
+            hash: '0x123'
+          },
+          services: [{
+            id: 'machine-identifier-1',
+            type: 'Machine-1',
+            serviceEndpoint: 'http://localhost:8080/ipfs/'
+          }]
+        }
+        // create an object of what is to be expected in the `data` of the transaction
+        const expected: ExpectedEvmCreateDid = {
+          address: EVM_ADDRESS,
+          didName: didName,
+          customFields: customFields,
+          validityFor: 0
+        }
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS, customDocumentFields: customFields}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
+
+        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+        // TODO add a read function to test
+        console.log(receipt);
+      }, 50000);
+
+
+      // TODO try with the seed phrase as well
     });
   });
 
@@ -68,6 +175,26 @@ describe('Did', () => {
   /**
    * Tests the generation of a DID hash value, without calling blockchain extrinsics. Checks for expected errors.
    */
+  describe.skip('Substrate Tests', () => {
+    let keyring: Keyring;
+    let keyring2: Keyring;
+    let user: KeyringPair;
+    let user2: KeyringPair;
+    let sdk: SDK;
+    let sdk2: SDK;
+    beforeAll(async () => {
+      keyring = new Keyring({ type: 'sr25519' });
+      keyring2 = new Keyring({ type: 'sr25519' });
+      await cryptoWaitReady();
+      user = keyring.addFromUri(SEED);
+      await cryptoWaitReady();
+      user2 = keyring2.addFromUri(SEED2);
+      sdk = await SDK.createInstance({baseUrl: BASE_URL_WSS, seed: SEED});
+      sdk2 = await SDK.createInstance({baseUrl: BASE_URL_WSS, seed: SEED2});
+    }, 40000);
+    afterAll(async () => {
+    });
+
     describe('generate()', () => {
       it('generate did with an incorrect Substrate address', async () => {
         const address1 = 'Incorrect Address Format';
@@ -914,6 +1041,8 @@ describe('Did', () => {
     }, 150000);
   });
 });
+});
+
 
 /**
  * General Flow to ensure proper DID and DID Document creation.
@@ -937,7 +1066,7 @@ async function createReadRemove(new_did: string, sdk: SDK, user: KeyringPair, cu
     ...(address !== null && {address: address}),
     ...(customFields && { customDocumentFields: customFields }),
     ...(seed !== null && { seed: seed }), // Only add `seed` if it is not null
-  });
+  }) as CreateDidResult;
 
   expect(result.block_hash).toBeDefined();
   // expect(typeof result.unsubscribe).toBe('function');
@@ -1000,7 +1129,7 @@ async function readDid(read_did: ReadDidResponse, new_did: string, user: Keyring
   await readDocument(document, user, customFields, address);
 }
 
-async function readDocument(document: DidDocument, user: KeyringPair, customFields: CustomDocumentFields | null, address: string){
+async function readDocument(document: DidDocument, user: KeyringPair | null, customFields: CustomDocumentFields | null | undefined, address: string){
   const didDocument = document;
   if (customFields?.prefix) {
     expect(didDocument?.id).toBe(`did:${customFields?.prefix}:${address}`);
@@ -1082,5 +1211,78 @@ async function readDocument(document: DidDocument, user: KeyringPair, customFiel
         });
       });
     }
+  }
+}
+
+/**
+ * Reads the Evm Tx object and determines whether of not the transaction object was constructed properly.
+ * 
+ * @param tx - EVM transaction with a to parameter (DID precompile) and data parameter (function and params in DID precompile)
+ * @param functionPrefix - Identifies which function is being executed on the DID precompile
+ * @param expected - The parameters of the encoded calldata to be sent on chain
+ * 
+ * @returns - None
+ */
+async function checkEvmTx(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | null) { // or the rest of possibilties
+  expect(tx).toBeDefined();
+  expect(tx.to).toBeDefined();
+  expect(tx.data).toBeDefined();
+  expect(tx.to).toBe(PRECOMPILE_DID);
+  await decodeTxData(tx, functionPrefix, expected);
+  return;
+}
+
+/**
+ * Decodes the data based on what type of transaction is occurring to guarantee
+ * what is being sent to chain is valid.
+ * 
+ * @param tx - EVM transaction with a to parameter and data parameter
+ * @param functionPrefix - Identifies which function is being executed on the DID precompile
+ * @param expected - The parameters of the encoded calldata to be sent on chain
+ * @returns - None
+ */
+async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | null) {
+  expect(tx.data.startsWith(functionPrefix)).toBe(true);
+  const encodedParameters = "0x" + tx.data.slice(10);
+
+  switch (functionPrefix) {
+    case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
+      const decoded = abiCoder.decode(
+        ["address", "bytes", "bytes", "uint32"],
+        encodedParameters
+      );
+      const address = decoded[0];
+      const didName = decoded[1];
+      const didVal = decoded[2];
+      const validityFor = decoded[3];
+
+      const originalAddress = address;
+      const originalName = ethers.toUtf8String(didName);
+      const originalDidValue = ethers.toUtf8String(didVal);
+      const document = peaqDidProto.Document.deserializeBinary(hexToU8a(originalDidValue)).toObject() as DidDocument;
+      const originalValidity = Number(validityFor);
+
+      expect(originalAddress).toBe(expected?.address);
+      expect(originalName).toBe(expected?.didName);
+      readDocument(document, null, expected?.customFields, EVM_ADDRESS); // checks DID Document
+      expect(originalValidity).toBe(0);
+      return;
+      
+    // case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
+    //   // Implement logic for CASE2
+    //   return;
+      
+    // case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
+    //   // Implement logic for CASE3
+    //   return;
+      
+    // case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
+    //   // Implement logic for CASE4
+    //   return;
+      
+    default:
+      // This ensures exhaustiveness – if a new enum value is added,
+      // TypeScript will warn if it's not handled.
+      throw new Error(`Unhandled function prefix: ${functionPrefix}`);
   }
 }
