@@ -29,11 +29,13 @@ export class Main extends Base {
   constructor(options: Options) {
     super();
     this._options = options;
-    this._api = this._createApi(options);
     this._metadata = {
       "baseUrl": options.baseUrl, 
-      "chainType": options.chainType?.toUpperCase()};
-
+      "chainType": options.chainType?.toUpperCase()
+    };
+    
+    this._api = this._createApi(options);
+    
     this.did = new Did(this._api, this._metadata);
     this.rbac = new RBAC(this._api, this._metadata);
     this.storage = new Storage(this._api, this._metadata);
@@ -123,7 +125,7 @@ export class Main extends Base {
    * @param options - Options for the API.
    * @returns The created instance of the API.
    */
-  private _createApi(options: Options): ApiPromise | undefined{
+  private _createApi(options: Options): ApiPromise | undefined {
     // do not create an api for evm transactions. We only construct the tx. Send option to be added later.
     if (this._metadata.chainType == "EVM") {
       return undefined

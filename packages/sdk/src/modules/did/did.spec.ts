@@ -1,4 +1,3 @@
-import dotenv from 'dotenv';
 import * as peaqDidProto from 'peaq-did-proto-js';
 import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
@@ -9,7 +8,6 @@ import { CustomDocumentFields } from './index';
 import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
 import { Main as SDK } from '../main';
 
-dotenv.config(); // Load variables from .env file
 
 /**
  * Global variables used to initialize the BASE_URL, and seed phrases that are used to create wallets.
@@ -19,6 +17,8 @@ dotenv.config(); // Load variables from .env file
 const BASE_URL = process.env['BASE_URL'] as string;
 const SEED = process.env['SEED'] as string;
 const SEED2 = process.env['SEED2'] as string;
+const EVM_ADDRESS = process.env['EVM_ADDRESS'] as string;
+const PRECOMPILE_DID = process.env['PRECOMPILE_DID'] as string;
 
 const address_error = `AddressError: Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
         SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
@@ -51,6 +51,19 @@ describe('Did', () => {
 
   afterAll(async () => {
   });
+
+  /**
+   * Tests EVM compatible sdk functions for DIDs
+   */
+  describe('EVM Tests', () => {
+    /// TODO
+    describe('create()', () => {
+      it('', async () => {
+      });
+    });
+  });
+
+
 
   /**
    * Tests the generation of a DID hash value, without calling blockchain extrinsics. Checks for expected errors.
