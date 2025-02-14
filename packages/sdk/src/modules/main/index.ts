@@ -3,7 +3,7 @@ import { mnemonicValidate, cryptoWaitReady } from '@polkadot/util-crypto';
 import { defaultOptions } from '@peaq-network/types';
 
 import { unsubscribeRuntimeVersion } from '../../utils';
-import type { Options, SDKMetadata } from '../../types';
+import type { Options, SDKMetadata, SendEvmTx } from '../../types';
 
 import { Base } from '../base';
 import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
@@ -11,12 +11,14 @@ import { RBAC } from '../rbac';
 import { Storage } from '../storage';
 import { Ptp, PtpOptions, type SyncResult } from '../ptp';
 
+import { ethers } from 'ethers';
+
 /**
  * Main class for interacting with the SDK.
  */
 export class Main extends Base {
   private readonly _options: Options;
-  protected override _api: ApiPromise;
+  protected override _api: ApiPromise | undefined;
   private _metadata: SDKMetadata;
 
   public did: Did;
@@ -28,7 +30,9 @@ export class Main extends Base {
     super();
     this._options = options;
     this._api = this._createApi(options);
-    this._metadata = {};
+    this._metadata = {
+      "baseUrl": options.baseUrl, 
+      "chainType": options.chainType?.toUpperCase()};
 
     this.did = new Did(this._api, this._metadata);
     this.rbac = new RBAC(this._api, this._metadata);
@@ -67,6 +71,10 @@ export class Main extends Base {
    */
   public async connect(): Promise<void> {
     try {
+      // can skip if evm set
+      if (this._metadata.chainType == "EVM") {
+        return
+      }
       if (!this._api) return;
 
       await this._api.isReadyOrError;
@@ -115,15 +123,63 @@ export class Main extends Base {
    * @param options - Options for the API.
    * @returns The created instance of the API.
    */
-  private _createApi(options: Options): ApiPromise {
-    const { baseUrl } = options || this._options;
-    const provider = new WsProvider(baseUrl);
-    return new ApiPromise({
-      provider,
-      noInitWarn: true,
-      ...defaultOptions,
-    });
+  private _createApi(options: Options): ApiPromise | undefined{
+    // do not create an api for evm transactions. We only construct the tx. Send option to be added later.
+    if (this._metadata.chainType == "EVM") {
+      return undefined
+    }
+    // Sets up a substrate api connection if chain_id is set or undefined (defaults to this)
+    else if (this._metadata.chainType == "SUBSTRATE" || this._metadata.chainType == undefined ) {
+      const { baseUrl } = options || this._options;
+      const provider = new WsProvider(baseUrl);
+      return new ApiPromise({
+        provider,
+        noInitWarn: true,
+        ...defaultOptions,
+      });
+    }
+    else {
+      throw new Error("Chain Type not recognized. Please set to either 'evm' or 'substrate' based on what environment you are trying to connect to. No chainType set defaults to substrate.")
+    }
   }
+
+  // allows user to send an evm tx to peaq chain if they provide their key.
+  public static async sendEvmTx(options: SendEvmTx) {
+    let provider;
+    if (options.chainType.toLocaleUpperCase() == "EVM"){
+      if (options.baseUrl.startsWith('wss')) {
+        // WebSocketProvider for WebSocket URLs
+        provider =  new ethers.WebSocketProvider(options.baseUrl);
+      } else if (options.baseUrl.startsWith('https')) {
+        // JsonRpcProvider for HTTPS URLs
+        provider =  new ethers.JsonRpcProvider(options.baseUrl);
+      } else {
+        throw new Error('Unsupported protocol in baseUrl. Only "wss" and "https" are supported.');
+      }
+      const signer = this._isEvmWalletInputValid(options.seed, provider);
+      const response = await signer.sendTransaction(options.tx);
+      const receipt = await response.wait(); // TODO figure out why it is hanging right here.
+      return receipt
+    }
+    else{
+      throw new Error(`Chain type of ${options.chainType} is not supported when trying to send EVM transactions`)
+    }
+  }
+
+  private static _isEvmWalletInputValid(key: string, provider: ethers.Provider): ethers.Wallet | ethers.HDNodeWallet {
+    try {
+        // Try to create a wallet from the input (could be a private key or mnemonic)
+         // For mnemonic
+        return ethers.Wallet.fromPhrase(key, provider);
+    } catch (error) {
+        try {
+             // For private key
+            return new ethers.Wallet(key, provider);;
+        } catch (error) {
+            throw new Error("Input is neither a valid mnemonic nor a private key");
+        }
+    }
+}
 
   /**
    * Subscribes to PTP time synchronization updates

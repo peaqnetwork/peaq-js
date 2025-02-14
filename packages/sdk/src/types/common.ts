@@ -10,12 +10,21 @@ import { Codec } from '@polkadot/types/types'
 export type Address = AccountId32 | string;
 
 export interface SDKMetadata {
+  chainType?: string;
+  baseUrl: string;
   pair?: KeyringPair;
 }
 
 export interface Options {
-  baseUrl?: string;
+  chainType?: string;
+  baseUrl: string;
   seed?: string;
+}
+export interface SendEvmTx {
+  tx: Object;
+  chainType: string;
+  baseUrl: string;
+  seed: string;
 }
 
 export interface CreateStorageKeysArgs {
