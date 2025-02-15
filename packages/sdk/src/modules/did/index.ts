@@ -220,13 +220,17 @@ export class Did extends Base {
    */
   public async read(options: ReadDidOptions): Promise<ReadDidResponse | null> {
     try {
-      const api = this._getApi();
-
       const { name, address = '' } = options;
-
       if (!name) throw new Error('Name is required when reading a DID.');
       if (address !== '') this._checkAddress(address);
 
+      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        const evm = new DIDInterfaceEVM(this._metadata.baseUrl);
+        return await evm.read({name: name,  address: address})
+      }
+
+      const api = this._getApi();
       const accountAddress = address || this._metadata?.pair?.address;
 
       if (!accountAddress) throw new Error('Address is required');

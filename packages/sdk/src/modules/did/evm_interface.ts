@@ -1,7 +1,7 @@
 import * as peaqDidProto from 'peaq-did-proto-js';
-import { CustomDocumentFields, Did } from './index'
+import { CustomDocumentFields, Did } from './index';
 
-import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
+import { Address, DidDocument, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
 
 import { hexToU8a } from '@polkadot/util';
 import { ethers } from 'ethers';
@@ -45,6 +45,9 @@ export interface EvmTransaction {
     data: string;
 }
 
+// TODO:
+
+// Add try catch blocks in each
 export class DIDInterfaceEVM {
     private abiCoder = new ethers.AbiCoder();
     private did = new Did();
@@ -90,8 +93,29 @@ export class DIDInterfaceEVM {
 
         return tx;
     }
-    public async read(options: ReadDidOptions)  {
+    public async read(options: ReadDidOptions): Promise<ReadDidResponse | null>  {
+        const { name, address } = options;
+        this._checkEvmAddress(address);
+        const readDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.READ_ATTRIBUTE)).substring(0, 10);
+
+        const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
+
+        const params = this.abiCoder.encode(
+            ["address", "bytes"],
+            [address, didName]
+        );
+
+        let payload = params.replace("0x", readDidFunctionSelector);
+        const provider = this._createProvider(this.baseUrl);
+
+        // TODO is this the best way to do this?? What is another way a read can be done?
+        const result = await provider.call({
+            to: PrecompileAddresses.DID,
+            data: payload,
+        });
+        return this._decodeReadAttribute(result);
     }
+
     public async update(options: UpdateDidOptions) {
     }
     public async remove(options: RemoveDidOptions) {
@@ -103,11 +127,58 @@ export class DIDInterfaceEVM {
         }
     }
 
-    private createProvider(baseUrl: string): ethers.Provider {
+    private _createProvider(baseUrl: string): ethers.Provider {
         if (baseUrl.startsWith('wss://')) {
           return new ethers.WebSocketProvider(baseUrl);
         } else {
           return new ethers.JsonRpcProvider(baseUrl);
         }
       }
+
+    private _decodeReadAttribute(result: string): ReadDidResponse {
+        try {
+            // Remove '0x' from result if present 
+            const resultHex = result.startsWith("0x") ? result.slice(2) : result;
+
+            // bytes 0 - 191 are fixed for the header. That is where we can extract the validity and created values
+
+            // --- Decode the header ---
+            // Word 1: bytes 96–127 is validity (uint32)
+            const validityHex = resultHex.slice(96 * 2, 128 * 2);
+            const validity = parseInt(validityHex, 16);
+
+            // Word 2: bytes 128–159 is the created field (uint256)
+            const createdHex = resultHex.slice(128 * 2, 160 * 2);
+            const created = Number(BigInt("0x" + createdHex));
+
+            // --- Decode the dynamic (tail) part ---
+            // The tail starts after the 192-byte header.
+            // 1. Name: starts at byte offset 192 and is 64 bytes long. Cut off the rest of extra hex.
+            const nameStart = 192;
+            const nameEnd = nameStart + 64 - 1;
+            const nameDataHex = resultHex.slice(nameStart * 2, nameEnd * 2);
+            const originalName = ethers.toUtf8String("0x" + nameDataHex);
+            const trimmedName = originalName.split('\x00')[0]; // remove excess
+
+            // 2. Value: starts at byte offset 256 until the end of the result. Cut off the rest of extra hex.
+            const valueStart = 256;
+            const valueDataHex = resultHex.slice(valueStart * 2); // from byte 256 to end
+            const value = "0x" + valueDataHex;
+            const decodedResult = ethers.toUtf8String(value);
+            const trimmedValue = decodedResult.split('\x00')[0];
+
+            const document = peaqDidProto.Document.deserializeBinary(hexToU8a(trimmedValue)).toObject() as DidDocument;
+            
+            return {
+                name: trimmedName,
+                value: "0x" + trimmedValue,
+                validity: validity.toString(),
+                created: created.toString(),
+                document: document
+            };
+        }
+        catch (error) {
+            throw new Error(`Failure decoding the returned back DID with response ${error}`);
+        }
+    }
 }

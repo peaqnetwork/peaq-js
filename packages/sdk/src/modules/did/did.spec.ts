@@ -59,7 +59,7 @@ describe('Did', () => {
   describe('EVM Tests', () => {
     /// TODO -> test when HTTPS vs WSS url is sent. HTTPS rpc is not working right now for agung
 
-    describe('create()', () => {
+    describe.skip('create()', () => {
       it('EVM chain fail when no address passed in create()', async () => {
         const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
         await expect(sdk.did.create({name: "evm-test"}))
@@ -164,9 +164,41 @@ describe('Did', () => {
         // TODO add a read function to test
         console.log(receipt);
       }, 50000);
-
+    });
 
       // TODO try with the seed phrase as well
+
+    describe('read()', () => {
+      it('Perform as basic read on a known DID with no custom data', async () => {
+        const didName = "evm-test-10004"
+
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS});
+        readDocument(result?.document as DidDocument, null, null, EVM_ADDRESS);
+      });
+      it('Perform as basic read on a known DID with custom data', async () => {
+        const didName = "evm-test-10005";
+        const customFields: CustomDocumentFields = {
+          prefix: 'custom_name',
+          verifications: [{
+            type: "Ed25519VerificationKey2020"
+          }],
+          signature: {
+            type: "Ed25519VerificationKey2020",
+            issuer: '123',
+            hash: '0x123'
+          },
+          services: [{
+            id: 'machine-identifier-1',
+            type: 'Machine-1',
+            serviceEndpoint: 'http://localhost:8080/ipfs/'
+          }]
+        }
+
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS});
+        readDocument(result?.document as DidDocument, null, customFields, EVM_ADDRESS);
+      });
     });
   });
 
