@@ -7,7 +7,7 @@ import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
 
 import { createStorageKeys } from '../../utils';
-import { CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
+import { GenerateDidError, CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
 import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
 import { CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
@@ -53,6 +53,12 @@ type Service = {
 export interface GenerateDidOptions {
   address: Address;
   customDocumentFields?: CustomDocumentFields;
+  update?: UpdateGeneratedDoc;
+}
+
+interface UpdateGeneratedDoc {
+  name: string;
+  value: boolean;
 }
 
 interface CreateDidOptions {
@@ -134,22 +140,37 @@ export class Did extends Base {
   public async generate(options: GenerateDidOptions): Promise<GenerateDidResult> {
     try {
 
-      const { address = '', customDocumentFields } = options;
+      const { address = '', customDocumentFields, update} = options;
       if (address !== '') this._checkAddress(address);
 
       const accountAddress = address;
+      let didDocumentHash;
 
-      const didDocumentHash = this._generateDidDocument({
-        didAccountAddress: accountAddress,
-        didControllerAddress: accountAddress,
-        customDocumentFields,
-      });
+      if (update?.value) {
+        const readDocument = await this.read({name: update.name, address: accountAddress});
+        if (!readDocument) throw new DidNotFoundError(`DID Document of name ${update.name} for the account address ${accountAddress} was not found.`);
+        const oldDocument = readDocument?.document as DidDocument;
+
+        didDocumentHash = this._updateDidDocument({
+          didAccountAddress: accountAddress,
+          didControllerAddress: accountAddress,
+          customDocumentFields: customDocumentFields,
+          oldDocument: oldDocument
+        });
+      }
+      else {
+        didDocumentHash = this._generateDidDocument({
+          didAccountAddress: accountAddress,
+          didControllerAddress: accountAddress,
+          customDocumentFields,
+        });
+      }
 
       return {
         value: didDocumentHash,
       };
     } catch (error) {
-        throw new CreateDidError(`${error}`);
+        throw new GenerateDidError(`${error}`);
       }
   }
 
@@ -175,7 +196,7 @@ export class Did extends Base {
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
         // address is required for EVM since it is not stored with the key-pair
         if (!address) throw new Error("Address is required when creating an EVM transaction since an Account is never stored from seed.");
-          const evm = new DIDInterfaceEVM(this._metadata.baseUrl);
+          const evm = new DIDInterfaceEVM(this._metadata);
           return await evm.create({name: name,  address: address, customDocumentFields: customDocumentFields})
       }
 
@@ -226,7 +247,7 @@ export class Did extends Base {
 
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
-        const evm = new DIDInterfaceEVM(this._metadata.baseUrl);
+        const evm = new DIDInterfaceEVM(this._metadata);
         return await evm.read({name: name,  address: address})
       }
 
@@ -269,16 +290,22 @@ export class Did extends Base {
    */
   public async update(options: UpdateDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<UpdateDidResult | null> {
+  ): Promise<UpdateDidResult | EvmTransaction | null> {
     try {
-      const api = this._getApi();
 
       const { name, address = '', seed = '', customDocumentFields } = options;
-
       if (!name) throw new NameError('Name is required when updating a DID.');
       if (seed !== '') this._checkSeed(seed);
       if (address !== '') this._checkAddress(address);
 
+      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        if (!customDocumentFields) throw new NoCustomFieldsError('DID Document fields must be configured before manually changing.');
+        const evm = new DIDInterfaceEVM(this._metadata);
+        return await evm.update({name: name,  address: address, customDocumentFields: customDocumentFields})
+      }
+
+      const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 

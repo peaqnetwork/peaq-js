@@ -50,11 +50,12 @@ export interface EvmTransaction {
 // Add try catch blocks in each
 export class DIDInterfaceEVM {
     private abiCoder = new ethers.AbiCoder();
-    private did = new Did();
-    private baseUrl: string;
+    private did: Did;
+    private _metadata: SDKMetadata;
 
-    constructor(baseUrl: string) {
-      this.baseUrl = baseUrl;
+    constructor(metadata: SDKMetadata) {
+      this.did = new Did(undefined, metadata);
+      this._metadata = metadata
     }
 
     public async create(options: CreateDidOptions): Promise<EvmTransaction> {
@@ -106,7 +107,7 @@ export class DIDInterfaceEVM {
         );
 
         let payload = params.replace("0x", readDidFunctionSelector);
-        const provider = this._createProvider(this.baseUrl);
+        const provider = this._createProvider(this._metadata.baseUrl);
 
         // TODO is this the best way to do this?? What is another way a read can be done?
         const result = await provider.call({
@@ -116,7 +117,34 @@ export class DIDInterfaceEVM {
         return this._decodeReadAttribute(result);
     }
 
-    public async update(options: UpdateDidOptions) {
+    public async update(options: UpdateDidOptions): Promise <EvmTransaction> {
+        const { name, address, customDocumentFields } = options;
+        if (!ethers.isAddress(address)) {
+            throw new Error(`${address} is not a valid EVM address`);
+        }
+        const updateDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.UPDATE_ATTRIBUTE)).substring(0, 10);
+        console.log(updateDidFunctionSelector);
+        const didAddress = address;
+        const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
+
+        // generate an updated DID Document Hash
+        const didDocHash = await this.did.generate({ address, customDocumentFields, update: {name: name, value: true}});
+        const didVal = ethers.hexlify(ethers.toUtf8Bytes(didDocHash.value));
+        const validityFor = 0;
+
+        const params = this.abiCoder.encode(
+            ["address", "bytes", "bytes", "uint32"],
+            [didAddress, didName, didVal, validityFor]
+        );
+
+        let payload = params.replace("0x", updateDidFunctionSelector);
+
+        const tx: EvmTransaction = {
+            to: PrecompileAddresses.DID,
+            data: payload
+        };
+
+        return tx;
     }
     public async remove(options: RemoveDidOptions) {
     }
@@ -145,11 +173,14 @@ export class DIDInterfaceEVM {
             // --- Decode the header ---
             // Word 1: bytes 96–127 is validity (uint32)
             const validityHex = resultHex.slice(96 * 2, 128 * 2);
-            const validity = parseInt(validityHex, 16);
+            const validity = parseInt(validityHex, 16).toString();
+            const validityFormatted = validity.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
             // Word 2: bytes 128–159 is the created field (uint256)
             const createdHex = resultHex.slice(128 * 2, 160 * 2);
-            const created = Number(BigInt("0x" + createdHex));
+            const created = Number(BigInt("0x" + createdHex)).toString();
+            const createdFormatted = created.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
 
             // --- Decode the dynamic (tail) part ---
             // The tail starts after the 192-byte header.
@@ -171,9 +202,9 @@ export class DIDInterfaceEVM {
             
             return {
                 name: trimmedName,
-                value: "0x" + trimmedValue,
-                validity: validity.toString(),
-                created: created.toString(),
+                value:  trimmedValue,
+                validity: validityFormatted,
+                created: createdFormatted,
                 document: document
             };
         }

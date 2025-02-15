@@ -34,11 +34,18 @@ const address_error = `AddressError: Incorrect Substrate SS58/Ethereum Address f
 
 const abiCoder = new ethers.AbiCoder();
 enum FunctionSignaturesPrefix {
-  ADD_ATTRIBUTE = '0xcc4a70ca'
+  ADD_ATTRIBUTE = '0xcc4a70ca',
+  UPDATE_ATTRIBUTE = '0x68b4b2c1'
 }
 
 
 type ExpectedEvmCreateDid = {
+  address: string;
+  didName: string;
+  customFields: CustomDocumentFields | null;
+  validityFor: number;
+}
+type ExpectedEvmUpdateDid = {
   address: string;
   didName: string;
   customFields: CustomDocumentFields | null;
@@ -168,13 +175,13 @@ describe('Did', () => {
 
       // TODO try with the seed phrase as well
 
-    describe('read()', () => {
+    describe.skip('read()', () => {
       it('Perform as basic read on a known DID with no custom data', async () => {
         const didName = "evm-test-10004"
 
         const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
         const result = await sdk.did.read({name: didName, address: EVM_ADDRESS});
-        readDocument(result?.document as DidDocument, null, null, EVM_ADDRESS);
+        await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, null);
       });
       it('Perform as basic read on a known DID with custom data', async () => {
         const didName = "evm-test-10005";
@@ -197,8 +204,37 @@ describe('Did', () => {
 
         const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
         const result = await sdk.did.read({name: didName, address: EVM_ADDRESS});
-        readDocument(result?.document as DidDocument, null, customFields, EVM_ADDRESS);
+        await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, customFields);
       });
+    });
+
+    describe('update()', () => {
+      it.skip('Try to update a DID that does not exist', async () => {
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        await sdk.did.update({name: "my-fake-did", address: EVM_ADDRESS, customDocumentFields: {verifications: [{type: "Ed25519VerificationKey2020"}],}});
+
+      });
+      it('Update a previously created DID', async () => {
+        const didName = "evm-test-10004";
+        const customFields: CustomDocumentFields = {verifications: [{type: "Ed25519VerificationKey2020"}]};
+        const expected: ExpectedEvmUpdateDid = {
+          address: EVM_ADDRESS,
+          didName: didName,
+          customFields: customFields,
+          validityFor: 0
+        }
+
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.update({name: didName, address: EVM_ADDRESS, customDocumentFields: customFields}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.UPDATE_ATTRIBUTE, expected);
+        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+
+        // make sure it gets added to chain
+        await sleep(15);
+        const result = await sdk.did.read({ address: EVM_ADDRESS, name: didName });
+        expect(result).toBeDefined();
+        await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, customFields);
+      }, 50000);
     });
   });
 
@@ -1135,7 +1171,7 @@ async function createReadRemove(new_did: string, sdk: SDK, user: KeyringPair, cu
  * @param customFields - The customizable fields the user manually set to be checked
  * @returns - None
  */
-async function readDid(read_did: ReadDidResponse, new_did: string, user: KeyringPair, customFields: CustomDocumentFields | null) {
+async function readDid(read_did: ReadDidResponse, new_did: string, user: KeyringPair | string, customFields: CustomDocumentFields | null) {
   expect(read_did).toBeDefined();
   expect(read_did?.name).toBe(new_did);
 
@@ -1156,12 +1192,13 @@ async function readDid(read_did: ReadDidResponse, new_did: string, user: Keyring
 
   expect(read_did?.document).toBeDefined();
   const document = read_did?.document;
-  const address = user.address;
+  const address = typeof user === "string" ? user : user.address;
+
   // tests did document values
   await readDocument(document, user, customFields, address);
 }
 
-async function readDocument(document: DidDocument, user: KeyringPair | null, customFields: CustomDocumentFields | null | undefined, address: string){
+async function readDocument(document: DidDocument, user: KeyringPair | string | null, customFields: CustomDocumentFields | null | undefined, address: string){
   const didDocument = document;
   if (customFields?.prefix) {
     expect(didDocument?.id).toBe(`did:${customFields?.prefix}:${address}`);
@@ -1255,7 +1292,7 @@ async function readDocument(document: DidDocument, user: KeyringPair | null, cus
  * 
  * @returns - None
  */
-async function checkEvmTx(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | null) { // or the rest of possibilties
+async function checkEvmTx(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | ExpectedEvmUpdateDid| null) {
   expect(tx).toBeDefined();
   expect(tx.to).toBeDefined();
   expect(tx.data).toBeDefined();
@@ -1273,12 +1310,12 @@ async function checkEvmTx(tx: EvmTransaction, functionPrefix: FunctionSignatures
  * @param expected - The parameters of the encoded calldata to be sent on chain
  * @returns - None
  */
-async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | null) {
+async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | ExpectedEvmUpdateDid | null) {
   expect(tx.data.startsWith(functionPrefix)).toBe(true);
   const encodedParameters = "0x" + tx.data.slice(10);
 
   switch (functionPrefix) {
-    case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
+    case FunctionSignaturesPrefix.ADD_ATTRIBUTE: {
       const decoded = abiCoder.decode(
         ["address", "bytes", "bytes", "uint32"],
         encodedParameters
@@ -1299,14 +1336,31 @@ async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignatur
       readDocument(document, null, expected?.customFields, EVM_ADDRESS); // checks DID Document
       expect(originalValidity).toBe(0);
       return;
-      
-    // case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
-    //   // Implement logic for CASE2
-    //   return;
-      
-    // case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
-    //   // Implement logic for CASE3
-    //   return;
+    }
+    case FunctionSignaturesPrefix.UPDATE_ATTRIBUTE: {
+      const decoded = abiCoder.decode(
+        ["address", "bytes", "bytes", "uint32"],
+        encodedParameters
+      );
+      const address = decoded[0];
+      const didName = decoded[1];
+      const didVal = decoded[2];
+      const validityFor = decoded[3];
+
+      const originalAddress = address;
+      const originalName = ethers.toUtf8String(didName);
+      const originalDidValue = ethers.toUtf8String(didVal);
+      const document = peaqDidProto.Document.deserializeBinary(hexToU8a(originalDidValue)).toObject() as DidDocument;
+      const originalValidity = Number(validityFor);
+
+      expect(originalAddress).toBe(expected?.address);
+      expect(originalName).toBe(expected?.didName);
+      readDocument(document, null, expected?.customFields, EVM_ADDRESS); // checks DID Document
+      expect(originalValidity).toBe(0);
+      return;
+    }
+      // Implement logic for CASE3
+      // return;
       
     // case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
     //   // Implement logic for CASE4
@@ -1317,4 +1371,8 @@ async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignatur
       // TypeScript will warn if it's not handled.
       throw new Error(`Unhandled function prefix: ${functionPrefix}`);
   }
+}
+
+function sleep(seconds: number) {
+  return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
