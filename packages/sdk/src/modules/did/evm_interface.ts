@@ -59,7 +59,6 @@ export class DIDInterfaceEVM {
     }
 
     public async create(options: CreateDidOptions): Promise<EvmTransaction> {
-        
         const { name, address, customDocumentFields } = options;
         this._checkEvmAddress(address);
 
@@ -91,9 +90,9 @@ export class DIDInterfaceEVM {
             to: PrecompileAddresses.DID,
             data: payload
         };
-
         return tx;
     }
+
     public async read(options: ReadDidOptions): Promise<ReadDidResponse | null>  {
         const { name, address } = options;
         this._checkEvmAddress(address);
@@ -123,7 +122,6 @@ export class DIDInterfaceEVM {
             throw new Error(`${address} is not a valid EVM address`);
         }
         const updateDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.UPDATE_ATTRIBUTE)).substring(0, 10);
-        console.log(updateDidFunctionSelector);
         const didAddress = address;
         const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
 
@@ -143,10 +141,31 @@ export class DIDInterfaceEVM {
             to: PrecompileAddresses.DID,
             data: payload
         };
-
         return tx;
     }
-    public async remove(options: RemoveDidOptions) {
+
+    public async remove(options: RemoveDidOptions): Promise <EvmTransaction> {
+        const { name, address } = options;
+        if (!ethers.isAddress(address)) {
+            throw new Error(`${address} is not a valid EVM address`);
+        }
+        const removeDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.REMOVE_ATTRIBUTE)).substring(0, 10);
+        
+        const didAddress = address;
+        const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
+        
+        const params = this.abiCoder.encode(
+            ["address", "bytes"],
+            [didAddress, didName]
+        );
+
+        let payload = params.replace("0x", removeDidFunctionSelector);
+
+        const tx: EvmTransaction = {
+            to: PrecompileAddresses.DID,
+            data: payload
+        };
+        return tx;
     }
 
     private _checkEvmAddress(address: Address){
@@ -172,7 +191,7 @@ export class DIDInterfaceEVM {
 
             // --- Decode the header ---
             // Word 1: bytes 96–127 is validity (uint32)
-            const validityHex = resultHex.slice(96 * 2, 128 * 2);
+            const validityHex = resultHex.slice(96 * 2, 128 * 2); // might have to change to 127
             const validity = parseInt(validityHex, 16).toString();
             const validityFormatted = validity.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 

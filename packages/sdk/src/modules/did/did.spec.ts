@@ -4,7 +4,7 @@ import { KeyringPair } from '@polkadot/keyring/types';
 import { hexToU8a,  } from '@polkadot/util';
 import { cryptoWaitReady } from '@polkadot/util-crypto';
 import type { DidDocument, ReadDidResponse } from '../../types';
-import { CustomDocumentFields, CreateDidResult } from './index';
+import { CustomDocumentFields, CreateDidResult, RemoveDidResult } from './index';
 import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
 import { Main as SDK } from '../main';
 import { EvmTransaction } from './evm_interface';
@@ -35,7 +35,8 @@ const address_error = `AddressError: Incorrect Substrate SS58/Ethereum Address f
 const abiCoder = new ethers.AbiCoder();
 enum FunctionSignaturesPrefix {
   ADD_ATTRIBUTE = '0xcc4a70ca',
-  UPDATE_ATTRIBUTE = '0x68b4b2c1'
+  UPDATE_ATTRIBUTE = '0x68b4b2c1',
+  REMOVE_ATTRIBUTE = '0xe8a81690'
 }
 
 
@@ -50,6 +51,10 @@ type ExpectedEvmUpdateDid = {
   didName: string;
   customFields: CustomDocumentFields | null;
   validityFor: number;
+}
+type ExpectedEvmRemoveDid = {
+  address: string;
+  didName: string;
 } 
 
 /**
@@ -65,6 +70,7 @@ describe('Did', () => {
    */
   describe('EVM Tests', () => {
     /// TODO -> test when HTTPS vs WSS url is sent. HTTPS rpc is not working right now for agung
+    /// Improve error handling
 
     describe.skip('create()', () => {
       it('EVM chain fail when no address passed in create()', async () => {
@@ -208,8 +214,8 @@ describe('Did', () => {
       });
     });
 
-    describe('update()', () => {
-      it.skip('Try to update a DID that does not exist', async () => {
+    describe.skip('update()', () => {
+      it('Try to update a DID that does not exist', async () => {
         const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
         await sdk.did.update({name: "my-fake-did", address: EVM_ADDRESS, customDocumentFields: {verifications: [{type: "Ed25519VerificationKey2020"}],}});
 
@@ -234,6 +240,65 @@ describe('Did', () => {
         const result = await sdk.did.read({ address: EVM_ADDRESS, name: didName });
         expect(result).toBeDefined();
         await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, customFields);
+      }, 50000);
+    });
+
+    describe('remove()', () => {
+      it('Try to remove a DID that does not exist', async () => {
+        const didName = "my-fake-did";
+        const expected: ExpectedEvmRemoveDid = {
+          address: EVM_ADDRESS,
+          didName: didName
+        }
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.remove({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.REMOVE_ATTRIBUTE, expected); // should still be constructed correctly
+        // try sending a tx that will fail
+        await expect(
+          SDK.sendEvmTx({
+            tx: tx,
+            chainType: "evm",
+            baseUrl: BASE_URL_WSS,
+            seed: ETH_PRIVATE
+          })
+        ).rejects.toMatchObject({
+          code: 'CALL_EXCEPTION',
+          revert: {
+            args: expect.arrayContaining([
+              expect.stringContaining('AttributeNotFound')
+            ])
+          }
+        });
+      });
+      it('Try to remove a known DID', async () => {
+        const didName = "evm-test-10004";
+        const expected: ExpectedEvmRemoveDid = {
+          address: EVM_ADDRESS,
+          didName: didName
+        }
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.remove({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.REMOVE_ATTRIBUTE, expected); // should still be constructed correctly
+
+        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+        await sleep(15);
+
+        // then try to remove again, but get an Attribute Not Found error
+        await expect(
+          SDK.sendEvmTx({
+            tx: tx,
+            chainType: "evm",
+            baseUrl: BASE_URL_WSS,
+            seed: ETH_PRIVATE
+          })
+        ).rejects.toMatchObject({
+          code: 'CALL_EXCEPTION',
+          revert: {
+            args: expect.arrayContaining([
+              expect.stringContaining('AttributeNotFound')
+            ])
+          }
+        });
       }, 50000);
     });
   });
@@ -491,7 +556,7 @@ describe('Did', () => {
         .rejects.toThrow("Error: AttributeAlreadyExist for peaqDid.");
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -755,7 +820,7 @@ describe('Did', () => {
       })).rejects.toThrow(new UpdateDidError("Error: AttributeAuthorizationFailed for peaqDid."));
   
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
 
@@ -795,7 +860,7 @@ describe('Did', () => {
       await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -832,7 +897,7 @@ describe('Did', () => {
       await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -871,7 +936,7 @@ describe('Did', () => {
       await readDid(result2 as ReadDidResponse, new_did, user, customFields3);
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 100000);
@@ -903,7 +968,7 @@ describe('Did', () => {
       await readDid(result2 as ReadDidResponse, new_did, user, customFields2);
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -941,7 +1006,7 @@ describe('Did', () => {
       await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -979,7 +1044,7 @@ describe('Did', () => {
       await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -1017,7 +1082,7 @@ describe('Did', () => {
       await readDid(result2 as ReadDidResponse, new_did, user, customFields);
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -1074,7 +1139,7 @@ describe('Did', () => {
     it('create & remove a DID', async () => {
       const new_did = 'did-test-1';
       await sdk.did.create({name: new_did});
-      const result = await sdk.did.remove({name: new_did});
+      const result = await sdk.did.remove({name: new_did}) as RemoveDidResult;
 
       expect(result?.block_hash).toBeDefined();
       expect(typeof result?.unsubscribe).toBe('function');
@@ -1089,7 +1154,7 @@ describe('Did', () => {
 
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -1103,7 +1168,7 @@ describe('Did', () => {
 
 
       // remove did for cleanup
-      const removeResult = await sdk.did.remove({name: new_did});
+      const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
       expect(removeResult?.block_hash).toBeDefined();
       expect(typeof removeResult?.unsubscribe).toBe('function');
     }, 150000);
@@ -1155,7 +1220,7 @@ async function createReadRemove(new_did: string, sdk: SDK, user: KeyringPair, cu
   await readDid(read_did as ReadDidResponse, new_did, user, customFields || null);
 
   // remove did for cleanup
-  const removeResult = await sdk.did.remove({name: new_did});
+  const removeResult = await sdk.did.remove({name: new_did}) as RemoveDidResult;
   expect(removeResult?.block_hash).toBeDefined();
   expect(typeof removeResult?.unsubscribe).toBe('function');
 }
@@ -1292,7 +1357,7 @@ async function readDocument(document: DidDocument, user: KeyringPair | string | 
  * 
  * @returns - None
  */
-async function checkEvmTx(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | ExpectedEvmUpdateDid| null) {
+async function checkEvmTx(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | ExpectedEvmUpdateDid| ExpectedEvmRemoveDid) {
   expect(tx).toBeDefined();
   expect(tx.to).toBeDefined();
   expect(tx.data).toBeDefined();
@@ -1310,7 +1375,7 @@ async function checkEvmTx(tx: EvmTransaction, functionPrefix: FunctionSignatures
  * @param expected - The parameters of the encoded calldata to be sent on chain
  * @returns - None
  */
-async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | ExpectedEvmUpdateDid | null) {
+async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignaturesPrefix, expected: ExpectedEvmCreateDid | ExpectedEvmUpdateDid | ExpectedEvmRemoveDid) {
   expect(tx.data.startsWith(functionPrefix)).toBe(true);
   const encodedParameters = "0x" + tx.data.slice(10);
 
@@ -1333,7 +1398,9 @@ async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignatur
 
       expect(originalAddress).toBe(expected?.address);
       expect(originalName).toBe(expected?.didName);
-      readDocument(document, null, expected?.customFields, EVM_ADDRESS); // checks DID Document
+      if ('customFields' in expected) {
+        readDocument(document, null, expected?.customFields, EVM_ADDRESS); // checks DID Document
+      } 
       expect(originalValidity).toBe(0);
       return;
     }
@@ -1355,16 +1422,29 @@ async function decodeTxData(tx: EvmTransaction, functionPrefix: FunctionSignatur
 
       expect(originalAddress).toBe(expected?.address);
       expect(originalName).toBe(expected?.didName);
-      readDocument(document, null, expected?.customFields, EVM_ADDRESS); // checks DID Document
+      if ('customFields' in expected) {
+        readDocument(document, null, expected?.customFields, EVM_ADDRESS); // checks DID Document
+      } 
       expect(originalValidity).toBe(0);
       return;
     }
       // Implement logic for CASE3
       // return;
       
-    // case FunctionSignaturesPrefix.ADD_ATTRIBUTE:
-    //   // Implement logic for CASE4
-    //   return;
+    case FunctionSignaturesPrefix.REMOVE_ATTRIBUTE:
+      const decoded = abiCoder.decode(
+        ["address", "bytes"],
+        encodedParameters
+      );
+      const address = decoded[0];
+      const didName = decoded[1];
+
+      const originalAddress = address;
+      const originalName = ethers.toUtf8String(didName);
+
+      expect(originalAddress).toBe(expected?.address);
+      expect(originalName).toBe(expected?.didName);
+      return;
       
     default:
       // This ensures exhaustiveness – if a new enum value is added,

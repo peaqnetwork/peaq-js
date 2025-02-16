@@ -102,7 +102,7 @@ export interface CreateDidResult {
   unsubscribe: () => void;
 }
 
-interface RemoveDidResult {
+export interface RemoveDidResult {
   log?: string,
   block_hash: CodecHash;
   unsubscribe: () => void;
@@ -299,7 +299,7 @@ export class Did extends Base {
       if (address !== '') this._checkAddress(address);
 
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
-        if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        if (!address) throw new Error("Address is required when updating an EVM transaction since an Account is never stored from seed.");
         if (!customDocumentFields) throw new NoCustomFieldsError('DID Document fields must be configured before manually changing.');
         const evm = new DIDInterfaceEVM(this._metadata);
         return await evm.update({name: name,  address: address, customDocumentFields: customDocumentFields})
@@ -356,16 +356,20 @@ export class Did extends Base {
    */
   public async remove(options: RemoveDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<RemoveDidResult | null> {
+  ): Promise<RemoveDidResult | EvmTransaction | null> {
     try {
-      const api = this._getApi();
-
       const { name, address = '', seed = '' } = options;
-
       if (!name) throw new NameError('Name is required when removing a DID.');
       if (seed !== '') this._checkSeed(seed);
       if (address !== '') this._checkAddress(address);
 
+      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        const evm = new DIDInterfaceEVM(this._metadata);
+        return await evm.remove({name: name,  address: address})
+      }
+
+      const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || this._metadata?.pair?.address;
 
