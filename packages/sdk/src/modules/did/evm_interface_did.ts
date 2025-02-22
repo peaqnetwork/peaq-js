@@ -45,9 +45,9 @@ export interface EvmTransaction {
     data: string;
 }
 
-// TODO:
-
-// Add try catch blocks in each
+/**
+ * Class that builds peaq's DID EVM transactions.
+ */
 export class DIDInterfaceEVM {
     private abiCoder = new ethers.AbiCoder();
     private did: Did;
@@ -58,14 +58,18 @@ export class DIDInterfaceEVM {
       this._metadata = metadata
     }
 
+    /**
+     * Creates a new DID EVM transactions and sends back to the user. 
+     *
+     * @param CreateDidOptions - The parameters this function is expecting:
+     *      @param name - The string name of the DID being created
+     *      @param address - Address that is used when constructing the DID Document.
+     *      @param customDocumentFields - Fields that will populate the DID Document.
+     * @returns tx - The transaction object for create DID that a user can send manually.
+     */
     public async create(options: CreateDidOptions): Promise<EvmTransaction> {
         const { name, address, customDocumentFields } = options;
         this._checkEvmAddress(address);
-
-        if (!ethers.isAddress(address)) {
-            throw new Error(`${address} is not a valid EVM address`);
-        }
-
         const createDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.ADD_ATTRIBUTE)).substring(0, 10);
 
         const didAddress = address;
@@ -74,10 +78,6 @@ export class DIDInterfaceEVM {
         const didDocHash = await this.did.generate({ address, customDocumentFields });
         const didVal = ethers.hexlify(ethers.toUtf8Bytes(didDocHash.value));
         const validityFor = 0;
-
-        // // to log document that is being added can uncomment below (useful for development debugging)
-        // const document = peaqDidProto.Document.deserializeBinary(hexToU8a(didDocHash.value));
-        // console.log(document.toObject());
 
         const params = this.abiCoder.encode(
             ["address", "bytes", "bytes", "uint32"],
@@ -93,11 +93,19 @@ export class DIDInterfaceEVM {
         return tx;
     }
 
+    /**
+     * Reads the DID Document at the provided name and address.
+     *
+     * @param ReadDidOptions - The parameters this function is expecting:
+     *      @param name - The name of the DID Document to be read.
+     *      @param address - The address where the DID Document is stored.
+     * @returns tx - The read DID Document found.
+     */
     public async read(options: ReadDidOptions): Promise<ReadDidResponse | null>  {
         const { name, address } = options;
         this._checkEvmAddress(address);
-        const readDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.READ_ATTRIBUTE)).substring(0, 10);
 
+        const readDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.READ_ATTRIBUTE)).substring(0, 10);
         const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
 
         const params = this.abiCoder.encode(
@@ -108,7 +116,7 @@ export class DIDInterfaceEVM {
         let payload = params.replace("0x", readDidFunctionSelector);
         const provider = this._createProvider(this._metadata.baseUrl);
 
-        // TODO is this the best way to do this?? What is another way a read can be done?
+        // TODO use Iredia storage key implementation
         const result = await provider.call({
             to: PrecompileAddresses.DID,
             data: payload,
@@ -116,11 +124,20 @@ export class DIDInterfaceEVM {
         return this._decodeReadAttribute(result);
     }
 
+     /**
+     * Updates a previously created DID Document. Uses the update feature of 
+     * generate DID Document to ensure proper logic.
+     *
+     * @param UpdateDidOptions - The parameters this function is expecting:
+     *      @param name - Name of the DID to be updated.
+     *      @param address - The address where the DID lives.
+     *      @param customDocumentFields - New fields that will be updated in the Document. Will overwrite previous data.
+     * @returns tx - The transaction object for update DID that a user can send manually.
+     */
     public async update(options: UpdateDidOptions): Promise <EvmTransaction> {
         const { name, address, customDocumentFields } = options;
-        if (!ethers.isAddress(address)) {
-            throw new Error(`${address} is not a valid EVM address`);
-        }
+        this._checkEvmAddress(address);
+
         const updateDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.UPDATE_ATTRIBUTE)).substring(0, 10);
         const didAddress = address;
         const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
@@ -144,11 +161,18 @@ export class DIDInterfaceEVM {
         return tx;
     }
 
+    /**
+     * Removes a DID Document that was previously created at the name and address.
+     *
+     * @param RemoveDidOptions - The parameters this function is expecting:
+     *      @param name - Name of the DID to be removed.
+     *      @param address - The address where the DID lives.
+     * @returns tx - The transaction object for remove DID that a user can send manually.
+     */
     public async remove(options: RemoveDidOptions): Promise <EvmTransaction> {
         const { name, address } = options;
-        if (!ethers.isAddress(address)) {
-            throw new Error(`${address} is not a valid EVM address`);
-        }
+        this._checkEvmAddress(address);
+
         const removeDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.REMOVE_ATTRIBUTE)).substring(0, 10);
         
         const didAddress = address;
@@ -168,20 +192,27 @@ export class DIDInterfaceEVM {
         return tx;
     }
 
+    /**
+     * Used to validate a proper H160 address is being passed.
+     */
     private _checkEvmAddress(address: Address){
         if (!ethers.isAddress(address)) {
             throw new Error(`${address} is not a valid EVM address`);
         }
     }
 
+    /**
+     * TO DEPRECIATE - Used to read DID Document (use storage key)
+     */
     private _createProvider(baseUrl: string): ethers.Provider {
-        if (baseUrl.startsWith('wss://')) {
-          return new ethers.WebSocketProvider(baseUrl);
-        } else {
           return new ethers.JsonRpcProvider(baseUrl);
-        }
       }
 
+    /**
+     * TO DEPRECIATE - Used to decode a read DID Document (use storage key)
+     * 
+     * TODO implement Iredia's feedback
+     */
     private _decodeReadAttribute(result: string): ReadDidResponse {
         try {
             // Remove '0x' from result if present 

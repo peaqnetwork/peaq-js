@@ -12,7 +12,7 @@ import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../.
 import { CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
 
-import { DIDInterfaceEVM, EvmTransaction } from './evm_interface';
+import { DIDInterfaceEVM, EvmTransaction } from './evm_interface_did';
 
 export interface CustomDocumentFields {
   prefix?: string,
@@ -141,7 +141,7 @@ export class Did extends Base {
     try {
 
       const { address = '', customDocumentFields, update} = options;
-      if (address !== '') this._checkAddress(address);
+      // if (address !== '') this._checkAddress(address);
 
       const accountAddress = address;
       let didDocumentHash;
@@ -190,7 +190,6 @@ export class Did extends Base {
 
       if (!name) throw new NameError('Name is required when creating a DID.');
       if (seed !== '') this._checkSeed(seed);
-      if (address !== '') this._checkAddress(address);
 
       // EVM tx logic if chainType is set to EVM
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
@@ -202,6 +201,7 @@ export class Did extends Base {
 
       // Create and send substrate transaction
       const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
@@ -243,7 +243,6 @@ export class Did extends Base {
     try {
       const { name, address = '' } = options;
       if (!name) throw new Error('Name is required when reading a DID.');
-      if (address !== '') this._checkAddress(address);
 
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
@@ -252,6 +251,7 @@ export class Did extends Base {
       }
 
       const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const accountAddress = address || this._metadata?.pair?.address;
 
       if (!accountAddress) throw new Error('Address is required');
@@ -296,7 +296,6 @@ export class Did extends Base {
       const { name, address = '', seed = '', customDocumentFields } = options;
       if (!name) throw new NameError('Name is required when updating a DID.');
       if (seed !== '') this._checkSeed(seed);
-      if (address !== '') this._checkAddress(address);
 
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
         if (!address) throw new Error("Address is required when updating an EVM transaction since an Account is never stored from seed.");
@@ -306,6 +305,7 @@ export class Did extends Base {
       }
 
       const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
@@ -361,7 +361,6 @@ export class Did extends Base {
       const { name, address = '', seed = '' } = options;
       if (!name) throw new NameError('Name is required when removing a DID.');
       if (seed !== '') this._checkSeed(seed);
-      if (address !== '') this._checkAddress(address);
 
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
@@ -370,6 +369,7 @@ export class Did extends Base {
       }
 
       const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || this._metadata?.pair?.address;
 
@@ -624,14 +624,11 @@ export class Did extends Base {
     }
   }
 
-  private _checkAddress(accountAddress: Address) {
+  private _checkSubstrateAddress(accountAddress: Address) {
     if (!accountAddress) throw new AddressError('Address is required');
     const regexSS58 = /^[1-9A-HJ-NP-Za-km-z]{48}$/; // regex for ss58
-    const regexETH = /^0x[a-fA-F0-9]{40}$/;         // regex for Ethereum
-    if(!regexSS58.test(accountAddress as string) && !regexETH.test(accountAddress as string)){
-      throw new AddressError(`Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
-        SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
-        40 hexadecimal characters (0-9, a-f, A-F) with no characters omitted.`);
+    if(!regexSS58.test(accountAddress as string) ){
+      throw new AddressError("Incorrect Substrate SS58 Address format. SS58 address are 58 char in length with 0, O, I & l omitted.");
     }
   }
 }

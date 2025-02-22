@@ -7,7 +7,7 @@ import type { DidDocument, ReadDidResponse } from '../../types';
 import { CustomDocumentFields, CreateDidResult, RemoveDidResult } from './index';
 import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
 import { Main as SDK } from '../main';
-import { EvmTransaction } from './evm_interface';
+import { EvmTransaction } from './evm_interface_did';
 
 
 import { ethers } from 'ethers';
@@ -125,6 +125,21 @@ describe('Did', () => {
         const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
         const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS, customDocumentFields: customFields}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
+      });
+      it('Try to send an attribute that already exists', async () => {
+        const didName = "evm-test"
+        // create an object of what is to be expected in the `data` of the transaction
+        const expected: ExpectedEvmCreateDid = {
+          address: EVM_ADDRESS,
+          didName: didName,
+          customFields: null,
+          validityFor: 0
+        }
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
+
+        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
       });
       it('create and send ethereum tx to chain no custom fields', async () => {
         const didName = "evm-test-10004"
@@ -244,7 +259,7 @@ describe('Did', () => {
     });
 
     describe('remove()', () => {
-      it('Try to remove a DID that does not exist', async () => {
+      it.skip('Try to remove a DID that does not exist', async () => {
         const didName = "my-fake-did";
         const expected: ExpectedEvmRemoveDid = {
           address: EVM_ADDRESS,

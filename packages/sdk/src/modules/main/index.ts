@@ -34,7 +34,7 @@ export class Main extends Base {
       "chainType": options.chainType?.toUpperCase()
     };
     
-    this._api = this._createApi(options);
+    this._api = this._createApi();
     
     this.did = new Did(this._api, this._metadata);
     this.rbac = new RBAC(this._api, this._metadata);
@@ -45,8 +45,11 @@ export class Main extends Base {
   /**
    * Creates a new instance of the SDK and connects to the network.
    *
-   * @param options - Options for the SDK.
-   * @returns The created instance of the SDK.
+   * @param options - Options for the SDK with fields:
+   *    @param chainType - Used to differentiate between Substrate and EVM txs.
+   *    @param baseUrl - RPC url that the API will be connected to.
+   *    @param seed - Private key that will sign the transaction.
+   * @returns sdk - The SDK built with executable class functions.  
    */
   public static async createInstance(options: Options): Promise<Main> {
     await cryptoWaitReady();
@@ -57,9 +60,11 @@ export class Main extends Base {
 
   /**
    * Generates a hash of the DID Document without connecting to the chain.
-   *
-   * @param GenerateDidOptions - The options for generating a DID.
-   * @returns The hash value of the generated DID document
+   * @param GenerateDidOptions - The options for generating a DID:
+   *    @param address - User address used to construct DID Document.
+   *    @param customDocumentFields - Fields that will populate the DID Document.
+   *    @param update - Indicates whether you want to build an upgraded DID Document.
+   * @returns The hash value of the generated DID document to be stored on chain.
    */
   public static async generateDidDocument(
     options: GenerateDidOptions
@@ -69,7 +74,8 @@ export class Main extends Base {
   }
 
   /**
-   * Connects the SDK to the network.
+   * Connects the SDK to the network. 
+   * If chainType is EVM no connection is established.
    */
   public async connect(): Promise<void> {
     try {
@@ -103,6 +109,9 @@ export class Main extends Base {
     }
   }
 
+  /**
+   * Checks the seed passed when connecting Substrate.
+   */
   private _validateOptions(): void {
     const { seed = '' } = this._options;
     if (seed) {
@@ -111,6 +120,10 @@ export class Main extends Base {
     }
   }
 
+  /**
+   * Sets the KeyPair in a metadata object so it can be later
+   * to send transactions on behalf of the user.
+   */
   private _setMetadata(): void {
     const { seed = '' } = this._options;
     if (seed) {
@@ -120,53 +133,99 @@ export class Main extends Base {
   }
 
   /**
-   * Creates a new instance of the Polkadot API.
-   *
-   * @param options - Options for the API.
-   * @returns The created instance of the API.
+   * Creates a new instance of the peaq's native Polkadot API connection.
+   * @returns undefined - When EVM is set, there is no API connection initialized.
+   * @returns ApiPromise - Instance of the Substrate wss connection.
    */
-  private _createApi(options: Options): ApiPromise | undefined {
-    // do not create an api for evm transactions. We only construct the tx. Send option to be added later.
-    if (this._metadata.chainType == "EVM") {
-      return undefined
-    }
-    // Sets up a substrate api connection if chain_id is set or undefined (defaults to this)
-    else if (this._metadata.chainType == "SUBSTRATE" || this._metadata.chainType == undefined ) {
-      const provider = new WsProvider(this._metadata.baseUrl);
-      return new ApiPromise({
-        provider,
-        noInitWarn: true,
-        ...defaultOptions,
-      });
-    }
-    else {
-      throw new Error("Chain Type not recognized. Please set to either 'evm' or 'substrate' based on what environment you are trying to connect to. No chainType set defaults to substrate.")
-    }
-  }
+  private _createApi(): ApiPromise | undefined {
+      if (this._metadata.chainType == "EVM") {
+        if (!this._metadata.baseUrl.startsWith("https://")) {
+          throw new Error(
+            `Invalid base URL for EVM interactions: ${this._metadata.baseUrl}. It must start with 'https://'.`
+            )}
+        if (this._options.seed) {
+          throw new Error("Construction of EVM txs does not require seed. Use the sendEvmTx() to send a transaction on chain or send manually.")
+        }
+        return undefined
+        }
+  
+      // Sets up a substrate api connection if chain_id is set or undefined (defaults to this)
+      else if (this._metadata.chainType == "SUBSTRATE" || this._metadata.chainType == undefined ) {
+        if (!this._metadata.baseUrl.startsWith("wss://")) {
+          throw new Error(
+            `Invalid base URL for Substrate interactions: ${this._metadata.baseUrl}. It must start with 'wss://'.`
+            )}
 
-  // allows user to send an evm tx to peaq chain if they provide their key.
-  public static async sendEvmTx(options: SendEvmTx) {
-    let provider;
-    if (options.chainType.toLocaleUpperCase() == "EVM"){
-      if (options.baseUrl.startsWith('wss')) {
-        // WebSocketProvider for WebSocket URLs
-        provider =  new ethers.WebSocketProvider(options.baseUrl);
-      } else if (options.baseUrl.startsWith('https')) {
-        // JsonRpcProvider for HTTPS URLs
-        provider =  new ethers.JsonRpcProvider(options.baseUrl);
-      } else {
-        throw new Error('Unsupported protocol in baseUrl. Only "wss" and "https" are supported.');
+        const provider = new WsProvider(this._metadata.baseUrl);
+        return new ApiPromise({
+          provider,
+          noInitWarn: true,
+          ...defaultOptions,
+        });
       }
-      const signer = this._isEvmWalletInputValid(options.seed, provider);
-      const response = await signer.sendTransaction(options.tx);
-      // const receipt = await response.wait().finally(); // TODO figure out why it is hanging right here.
-      return response
-    }
-    else{
-      throw new Error(`Chain type of ${options.chainType} is not supported when trying to send EVM transactions`)
-    }
+
+      else {
+        throw new Error("Chain Type not recognized. Please set to either 'evm' or 'substrate' based on what environment you are trying to connect to. No chainType set defaults to substrate.")
+      }
   }
 
+  /**
+   * Send an EVM transaction on behalf of the user using their funded seed.
+   * @param SendEvmTx - Object with the parameters:
+   *    @param tx - EVM tx object that will be sent to chain.
+   *    @param chainType - Guarantees user knows they are sending an EVM-like tx.
+   *    @param baseUrl - RPC url that the tx will be sent to.
+   *    @param seed - Private key that will sign the transaction.
+   * @returns The receipt of the transaction.
+   */
+  public static async sendEvmTx(options: SendEvmTx) {
+    try {
+      let provider;
+      if (options.chainType.toLocaleUpperCase() == "EVM"){
+        if (options.baseUrl.startsWith('wss')) {
+          // WebSocketProvider for WebSocket URLs
+          provider =  new ethers.WebSocketProvider(options.baseUrl);
+        } else if (options.baseUrl.startsWith('https')) {
+          // JsonRpcProvider for HTTPS URLs
+          provider =  new ethers.JsonRpcProvider(options.baseUrl);
+        } else {
+          throw new Error('Unsupported protocol in baseUrl. Only "wss" and "https" are supported.');
+        }
+        const signer = this._isEvmWalletInputValid(options.seed, provider);
+        const response = await signer.sendTransaction(options.tx);
+        const receipt = await response.wait().finally(); // TODO figure out why it is hanging right here.
+        return receipt
+      }
+      else{
+        throw new Error(`Chain type of ${options.chainType} is not supported when trying to send EVM transactions`)
+      }
+    }
+    // Basic error catching: TODO - create better object
+  catch(error) {
+    let errorMessage = "";
+
+    // Narrow the error type: check if it's an object with a 'reason' property
+    if (error && typeof error === 'object' && 'reason' in error) {
+      errorMessage = (error as any).reason || "";
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    } else {
+      errorMessage = String(error);
+    }
+    const regex = /message:\s*Some\("([^"]+)"\)/;
+    const match = errorMessage.match(regex);
+    const extractedMessage = match ? match[1] : errorMessage;
+  
+    throw new Error(`Transaction reverted with error: ${extractedMessage}`);
+    }
+  }
+/**
+* Builds an EVM wallet for the user to send transactions.
+* Allows for the wallet to be built with a private key or mnemonic phrase.
+* @param key - Private key or seed phrase used to construct the wallet.
+* @param provider - Ethers provider that establishes the sender's connection.
+* @returns The new EVM wallet that will be used to send the tx.
+*/
   private static _isEvmWalletInputValid(key: string, provider: ethers.Provider): ethers.Wallet | ethers.HDNodeWallet {
     try {
         // Try to create a wallet from the input (could be a private key or mnemonic)
