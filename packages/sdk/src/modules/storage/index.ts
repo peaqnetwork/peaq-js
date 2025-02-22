@@ -37,7 +37,7 @@ export type AddItemResult = {
     unsubscribe: () => void;
 }
 
-type RemoveItemResult = {
+export type RemoveItemResult = {
     message: string;
     block_hash: CodecHash;
     unsubscribe: () => void;
@@ -114,18 +114,23 @@ export class Storage extends Base {
     /**
      * Removes the itemType in peaqStorage
      */
-
     public async removeItem(
         options: RemoveItemOptions,
         statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-     ): Promise<RemoveItemResult> {
+     ): Promise<RemoveItemResult| EvmTransaction> {
         try {
-            const api = this._getApi();
-
             const { itemType, seed = ''} = options;
             if (!itemType) throw new ItemTypeError('Item Type name is required');
             if (seed !== '') this._checkSeed(seed);
 
+            // EVM tx logic if chainType is set to EVM
+            if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+                throw new Error("Remove item for EVM currently being developed.")
+                // const evm = new DIDInterfaceStorage();
+                // return await evm.removeItem({itemType: itemType})
+            }
+
+            const api = this._getApi();
             const keyPair = this._metadata?.pair || this._getKeyPair(seed);
             const attributeExtrinsic = api.tx?.['peaqStorage']?.['removeItem'](
                 itemType

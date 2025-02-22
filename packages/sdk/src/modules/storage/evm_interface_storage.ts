@@ -1,5 +1,3 @@
-import { Storage } from './index';
-import { SDKMetadata } from '../../types';
 import { ethers } from 'ethers';
 
 
@@ -7,7 +5,7 @@ enum FunctionSignatures {
     ADD_ITEM = "addItem(bytes,bytes)",
     GET_ITEM = "getItem(address,bytes)",
     UPDATE_ITEM = "updateItem(bytes,bytes)",
-    // REMOVE_ITEM = "removeItem(address,bytes)" // appears to not exist in the precompiles
+    REMOVE_ITEM = "removeItem(bytes)" // appears to not exist in the precompiles
 }
 
 enum PrecompileAddresses {
@@ -17,6 +15,10 @@ enum PrecompileAddresses {
 interface AddItemOptions {
     itemType: string;
     item: string;
+}
+
+type RemoveItemOptions = {
+    itemType: string;
 }
 
 export interface EvmTransaction {
@@ -43,7 +45,7 @@ export class DIDInterfaceStorage {
      */
     public async addItem(options: AddItemOptions): Promise<EvmTransaction> {
         const { itemType, item } = options;
-        const createDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.ADD_ITEM)).substring(0, 10);
+        const createStorageFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.ADD_ITEM)).substring(0, 10);
 
         const itemTypeBytes = ethers.hexlify(ethers.toUtf8Bytes(itemType));
         const itemBytes = ethers.hexlify(ethers.toUtf8Bytes(item));
@@ -54,12 +56,37 @@ export class DIDInterfaceStorage {
             [itemTypeBytes, itemBytes]
         );
 
-        let payload = params.replace("0x", createDidFunctionSelector);
+        let payload = params.replace("0x", createStorageFunctionSelector);
         const tx: EvmTransaction = {
             to: PrecompileAddresses.STORAGE,
             data: payload
         };
-        return tx
+        return tx;
     }
 
+    /**
+     * Removes an item from peaq storage.
+     *
+     * @param RemoveItemOptions - The parameters this function is expecting:
+     *      @param itemType - The key at which the value is stored that will be deleted.
+     * @returns tx - The transaction object for add item that a user can send manually.
+     */
+    public async removeItem(options: RemoveItemOptions): Promise<EvmTransaction> {
+        const { itemType } = options;
+        const deleteStorageFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.REMOVE_ITEM)).substring(0, 10);
+
+        const itemTypeBytes = ethers.hexlify(ethers.toUtf8Bytes(itemType));
+
+        const params = this.abiCoder.encode(
+            ["bytes"],
+            [itemTypeBytes]
+        );
+
+        let payload = params.replace("0x", deleteStorageFunctionSelector);
+        const tx: EvmTransaction = {
+            to: PrecompileAddresses.STORAGE,
+            data: payload
+        };
+        return tx;
+    }
 }

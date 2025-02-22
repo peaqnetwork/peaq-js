@@ -1,7 +1,7 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { Storage, AddItemResult } from './index';
+import { Storage, AddItemResult, RemoveItemResult} from './index';
 import { u8aToHex, stringToU8a, hexToString } from '@polkadot/util';
 import { unsubscribeRuntimeVersion } from '../../utils';
 import { StorageError, ItemTypeError, ItemError, StorageAddressError} from '../../utils/errors';
@@ -61,6 +61,15 @@ describe('Storage', () => {
         console.log(receipt);
       }, 50000);
     });
+    describe('removeItem()', () => {
+      it('add a new item', async () => {
+        const itemType = 'evm-test-10000';
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
+        const tx = await sdk.storage.removeItem({itemType: itemType});
+        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
+        console.log(receipt);
+      },  50000);
+    })
   });
 
 
@@ -123,7 +132,7 @@ describe('Storage', () => {
           }) as AddItemResult;
           expect(result).toBeDefined();
           expect(result.message).toBe(`Successfully added the storage item type ${itemType} with item ${item} for the address ${user.address}`);
-          const result2 = await storage.removeItem({itemType: itemType});
+          const result2 = await storage.removeItem({itemType: itemType}) as AddItemResult;
           expect(result2).toBeDefined();
           expect(result2.message).toBe(`Successfully removed the storage item type ${itemType} from address ${user.address}`);
       }, 70000);
@@ -186,7 +195,7 @@ describe('Storage', () => {
           expect(result2).toBeDefined();
           const resultToString = hexToString(result2?.data);
           expect(resultToString).toBe('hi123');
-          const result3 = await storage.removeItem({itemType: itemType});
+          const result3 = await storage.removeItem({itemType: itemType}) as RemoveItemResult;
           expect(result3).toBeDefined();
           expect(result3.message).toBe(`Successfully removed the storage item type ${itemType} from address ${user.address}`);
       }, 80000);
@@ -263,7 +272,7 @@ describe('Storage', () => {
           await storage.addItem({itemType: itemType, item: "hi123"});
           const result = await storage.removeItem({
               itemType: itemType
-          });
+          }) as RemoveItemResult;
           expect(result.message).toBeDefined();
           expect(result?.message).toBe(`Successfully removed the storage item type ${itemType} from address ${user.address}`);
       }, 50000);
