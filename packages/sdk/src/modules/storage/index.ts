@@ -7,6 +7,7 @@ import { stringToU8a, u8aToHex, hexToString } from '@polkadot/util';
 import { StorageError, ItemTypeError, ItemError, StorageAddressError, StorageSeedError} from '../../utils/errors';
 import type { SDKMetadata} from '../../types';
 import { Base } from '../base';
+import { DIDInterfaceStorage, EvmTransaction } from './evm_interface_storage';
 
 type AddItemOptions = {
     itemType: string;
@@ -30,7 +31,7 @@ type UpdateItemOptions = {
     seed?: string;
 }
 
-type AddItemResult = {
+export type AddItemResult = {
     message: string;
     block_hash: CodecHash;
     unsubscribe: () => void;
@@ -70,25 +71,22 @@ export class Storage extends Base {
     public async addItem(
      options: AddItemOptions,
      statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<AddItemResult> {
+  ): Promise<AddItemResult | EvmTransaction> {
     try {
-        const api = this._getApi();
-
         const {itemType, item, seed = ''} = options;
-        // Need to know what types itemType can to ensure proper storage (for example, only converts string to byte array to check length; conditional for other types)
-        // - is there a way to do this no matter the type?
-
-        // check if object is uint8array, if it is not then convert to see how big of storage will be needed
-
-        // checks
         if (!itemType) throw new ItemTypeError('Item Type name is required');
         if (!item) throw new ItemError('Item name is required');
         if (seed !== '') this._checkSeed(seed);
-
-        // convert string to bytes to count before calling extrinsics
         if (stringToU8a(itemType).length > 64) throw new ItemTypeError('New Item Type cannot be larger than 64 bytes');
         if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
 
+        // EVM tx logic if chainType is set to EVM
+        if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+            const evm = new DIDInterfaceStorage();
+            return await evm.addItem({itemType: itemType,  item: item})
+        }
+        
+        const api = this._getApi();
         const keyPair = this._metadata?.pair || this._getKeyPair(seed);
         const attributeExtrinsic = api.tx?.['peaqStorage']?.['addItem'](
             itemType,
