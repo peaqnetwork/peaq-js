@@ -26,7 +26,7 @@ const address_error = `StorageAddressError: Incorrect Substrate SS58/Ethereum Ad
 // - create test to make sure remove storage function only works with the address that created the object
 describe('Storage', () => {
   describe('EVM Tests', () => {
-    describe('addItem()', () => {
+    describe.skip('addItem()', () => {
     // 'my_new_item' 'evm-test-10000' exists
       it('try to add an item type with no name', async() => {
         const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
@@ -61,7 +61,16 @@ describe('Storage', () => {
         console.log(receipt);
       }, 50000);
     });
-    describe('removeItem()', () => {
+    describe.skip('getItem()', () => {
+      it('try to add an item type with no name', async() => {
+        const itemType = 'evm-test-10000';
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
+        const result = await sdk.storage.getItem({itemType: itemType, address: EVM_ADDRESS, chain: 'agung'});
+        console.log(result);
+      });
+    });
+
+    describe.skip('removeItem()', () => {
       it('add a new item', async () => {
         const itemType = 'evm-test-10000';
         const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});

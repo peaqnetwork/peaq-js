@@ -1,9 +1,14 @@
 import * as peaqDidProto from 'peaq-did-proto-js';
+import { defaultOptions } from '@peaq-network/types';
+import { Attribute } from '@peaq-network/types/interfaces';
 import { CustomDocumentFields, Did } from './index';
+import { Address, DidDocument, ReadDidResponse, SDKMetadata, CreateStorageKeysEnum } from '../../types';
 
-import { Address, DidDocument, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
-
+import { evmToAddress } from '@polkadot/util-crypto';
 import { hexToU8a } from '@polkadot/util';
+import { createStorageKeys } from '../../utils';
+import { ApiPromise, WsProvider } from '@polkadot/api';
+
 import { ethers } from 'ethers';
 
 
@@ -27,6 +32,7 @@ interface CreateDidOptions {
 interface ReadDidOptions {
   name: string;
   address: Address;
+  chain: string;
 }
 
 interface UpdateDidOptions {
@@ -102,26 +108,28 @@ export class DIDInterfaceEVM {
      * @returns tx - The read DID Document found.
      */
     public async read(options: ReadDidOptions): Promise<ReadDidResponse | null>  {
-        const { name, address } = options;
+        const { name, address, chain } = options;
         this._checkEvmAddress(address);
+        return this._storageDecoder(name, address, chain)
 
-        const readDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.READ_ATTRIBUTE)).substring(0, 10);
-        const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
+        // DEPRECATED CODE BELOW:
+        // const readDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.READ_ATTRIBUTE)).substring(0, 10);
+        // const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
 
-        const params = this.abiCoder.encode(
-            ["address", "bytes"],
-            [address, didName]
-        );
+        // const params = this.abiCoder.encode(
+        //     ["address", "bytes"],
+        //     [address, didName]
+        // );
 
-        let payload = params.replace("0x", readDidFunctionSelector);
-        const provider = this._createProvider(this._metadata.baseUrl);
+        // let payload = params.replace("0x", readDidFunctionSelector);
+        // const provider = this._createProvider(this._metadata.baseUrl);
 
-        // TODO use Iredia storage key implementation
-        const result = await provider.call({
-            to: PrecompileAddresses.DID,
-            data: payload,
-        });
-        return this._decodeReadAttribute(result);
+        // // TODO use Iredia storage key implementation
+        // const result = await provider.call({
+        //     to: PrecompileAddresses.DID,
+        //     data: payload,
+        // });
+        // return this._decodeReadAttribute(result);
     }
 
      /**
@@ -208,8 +216,53 @@ export class DIDInterfaceEVM {
           return new ethers.JsonRpcProvider(baseUrl);
       }
 
+private async _storageDecoder(name: string, address: Address, chain: string) {
+        // Convert EVM to Substrate address
+        const substrateAddress = evmToAddress(address);
+
+        const { hashed_key } = createStorageKeys([
+            {
+                value: substrateAddress,
+                type: CreateStorageKeysEnum.ADDRESS,
+            },
+            { 
+                value: name, type: CreateStorageKeysEnum.STANDARD
+            },
+        ]);
+        let wsp;
+        // maybe: say if agung in baseUrl use agung, if not default to peaq??
+        // WHAT url should we use??
+        if (chain.toLocaleUpperCase() == 'PEAQ') {
+            wsp = new WsProvider("wss://peaq.api.onfinality.io/ws?apikey=d93a0743-d97b-4f8d-a502-2ec11fa9b899");
+        }
+        else if (chain.toLocaleUpperCase() == 'AGUNG'){
+            wsp = new WsProvider("wss://peaq-agung.api.onfinality.io/ws?apikey=b62c4890-668a-4f62-9a7f-e76f1469fb4c");
+        }
+        else {
+            throw new Error(`Chain of name ${chain} is not recognized. Please set to either 'peaq' or agung'.`)
+        }
+        // init the api connection
+        var api = await (await ApiPromise.create({ provider: wsp, noInitWarn: true, ...defaultOptions })).isReady;
+        
+        // read did from store
+        const did = (await api.query?.['peaqDid']?.['attributeStore'](
+            hashed_key
+        )) as unknown as Attribute;
+
+        if (!did || did.isStorageFallback) {
+            throw new Error(`Data for the name ${name} for the chain ${chain} at address ${address} was not found.`);
+        }
+
+        const didValue = String(did.toHuman()['value']);
+        const document = peaqDidProto.Document.deserializeBinary(hexToU8a(didValue));
+        return {
+            ...did.toHuman(),
+            document: document.toObject(),
+        } as ReadDidResponse;
+    }
+
     /**
-     * TO DEPRECIATE - Used to decode a read DID Document (use storage key)
+     * DEPRECIATED - Used to decode a read DID Document (use storage key)
      * 
      * TODO implement Iredia's feedback
      */

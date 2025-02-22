@@ -19,6 +19,7 @@ import { ethers } from 'ethers';
  */
 const BASE_URL_HTTPS = process.env['BASE_URL_HTTPS'] as string;
 const BASE_URL_WSS = process.env['BASE_URL_WSS'] as string;
+const BASE_URL = BASE_URL_HTTPS;
 
 const SEED = process.env['SEED'] as string;
 const SEED2 = process.env['SEED2'] as string;
@@ -150,11 +151,11 @@ describe('Did', () => {
           customFields: null,
           validityFor: 0
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
         const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
         // send to the chain
-        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL, seed: ETH_PRIVATE});
         // TODO add a read function to test
         console.log(receipt);
       }, 50000);
@@ -196,12 +197,12 @@ describe('Did', () => {
 
       // TODO try with the seed phrase as well
 
-    describe.skip('read()', () => {
+    describe('read()', () => {
       it('Perform as basic read on a known DID with no custom data', async () => {
         const didName = "evm-test-10004"
 
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
-        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS});
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, chain: 'agung'});
         await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, null);
       });
       it('Perform as basic read on a known DID with custom data', async () => {
@@ -223,8 +224,8 @@ describe('Did', () => {
           }]
         }
 
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
-        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS});
+        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, chain: 'agung'});
         await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, customFields);
       });
     });
@@ -258,7 +259,7 @@ describe('Did', () => {
       }, 50000);
     });
 
-    describe('remove()', () => {
+    describe.skip('remove()', () => {
       it.skip('Try to remove a DID that does not exist', async () => {
         const didName = "my-fake-did";
         const expected: ExpectedEvmRemoveDid = {

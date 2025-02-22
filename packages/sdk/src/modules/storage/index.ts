@@ -23,6 +23,7 @@ type RemoveItemOptions = {
 type GetItemOptions = {
     itemType: string;
     address?: string;
+    chain?: string;
 }
 
 type UpdateItemOptions = {
@@ -157,12 +158,19 @@ export class Storage extends Base {
 
      public async getItem(options: GetItemOptions): Promise<GetItemResult | null> {
        try {
-        const api = this._getApi();
-
-        const { itemType, address = '' } = options;
+        const { itemType, address = '', chain = '' } = options;
         if (!itemType) throw new ItemTypeError('Item Type name is required');
-        if (address !== '') this._checkAddress(address);
 
+        // EVM tx logic if chainType is set to EVM
+        if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+            if (!address) throw new Error("Address is required when reading from peaq EVM storage.");
+            if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
+            const evm = new DIDInterfaceStorage();
+            return await evm.getItem({itemType: itemType, address: address, chain: chain})
+        }
+
+        const api = this._getApi();
+        if (address !== '') this._checkAddress(address);
         const accountAddress = address || this._metadata?.pair?.address;
         if (!accountAddress) throw new StorageAddressError('Address is required');
 

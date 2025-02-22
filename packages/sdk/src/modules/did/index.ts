@@ -71,6 +71,7 @@ interface CreateDidOptions {
 interface ReadDidOptions {
   name: string;
   address?: Address;
+  chain?: string;
 }
 
 interface UpdateDidOptions {
@@ -241,13 +242,14 @@ export class Did extends Base {
    */
   public async read(options: ReadDidOptions): Promise<ReadDidResponse | null> {
     try {
-      const { name, address = '' } = options;
+      const { name, address = '', chain = '' } = options;
       if (!name) throw new Error('Name is required when reading a DID.');
 
       if (this._metadata?.chainType?.toUpperCase() == "EVM") {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
         const evm = new DIDInterfaceEVM(this._metadata);
-        return await evm.read({name: name,  address: address})
+        return await evm.read({name: name,  address: address, chain: chain})
       }
 
       const api = this._getApi();

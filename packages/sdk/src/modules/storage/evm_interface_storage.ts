@@ -1,4 +1,12 @@
 import { ethers } from 'ethers';
+import { evmToAddress } from '@polkadot/util-crypto';
+import { CreateStorageKeysEnum, Address } from '../../types';
+import { createStorageKeys } from '../../utils';
+import { ApiPromise, WsProvider } from '@polkadot/api';
+import { defaultOptions } from '@peaq-network/types';
+
+
+
 
 
 enum FunctionSignatures {
@@ -19,6 +27,15 @@ interface AddItemOptions {
 
 type RemoveItemOptions = {
     itemType: string;
+}
+
+type GetItemOptions = {
+    itemType: string;
+    address: string;
+    chain: string;
+}
+type GetItemResult = {
+    data: string;
 }
 
 export interface EvmTransaction {
@@ -88,5 +105,78 @@ export class DIDInterfaceStorage {
             data: payload
         };
         return tx;
+    }
+
+    /**
+     * Reads an item from peaq storage using storage keys.
+     *
+     * @param GetItemOptions - The parameters this function is expecting:
+     *      @param itemType - The key at which the value is stored that will be read.
+     *      @param address - The address which holds the storage of itemType.
+     * @returns - Read storage item.
+     */
+    public async getItem(options: GetItemOptions): Promise<GetItemResult> {
+        const { itemType, address, chain } = options;
+        this._checkEvmAddress(address);
+        return await this._storageDecoder(itemType, address, chain);
+
+        
+
+        // const tx: EvmTransaction = {
+        //     to: PrecompileAddresses.STORAGE,
+        //     data: "payload"
+        // };
+        // return tx;
+    }
+
+
+    /**
+     * Used to validate a proper H160 address is being passed.
+     */
+    private _checkEvmAddress(address: Address){
+        if (!ethers.isAddress(address)) {
+            throw new Error(`${address} is not a valid EVM address`);
+        }
+    }
+
+    // GET feedback since we need to build an WSProvider... but just want to use rpc??
+    // 
+    // Maybe have var to see what type and manually set? Maybe can do based on baseUrl set in beginning, but that can change.
+    private async _storageDecoder(itemType: string, address: Address, chain: string): Promise <GetItemResult> {
+        // Convert EVM to Substrate address
+        const substrateAddress = evmToAddress(address);
+
+        const { hashed_key } = createStorageKeys([
+            {
+                value: substrateAddress,
+                type: CreateStorageKeysEnum.ADDRESS,
+            },
+            { 
+                value: itemType, type: CreateStorageKeysEnum.STANDARD
+            },
+        ]);
+        let wsp;
+        // maybe: say if agung in baseUrl use agung, if not default to peaq??
+        // WHAT url should we use??
+        if (chain.toLocaleUpperCase() == 'PEAQ') {
+            wsp = new WsProvider("wss://peaq.api.onfinality.io/ws?apikey=d93a0743-d97b-4f8d-a502-2ec11fa9b899");
+        }
+        else if (chain.toLocaleUpperCase() == 'AGUNG'){
+            wsp = new WsProvider("wss://peaq-agung.api.onfinality.io/ws?apikey=b62c4890-668a-4f62-9a7f-e76f1469fb4c");
+        }
+        else {
+            throw new Error(`Chain of name ${chain} is not recognized. Please set to either 'peaq' or agung'.`)
+        }
+        // init the api connection
+        var api = await (await ApiPromise.create({ provider: wsp, noInitWarn: true, ...defaultOptions })).isReady;
+        const item = (await api.query?.['peaqStorage']?.['itemStore'](
+            hashed_key
+        ));
+        if (item.toHuman() == ''){
+            throw new Error(`Data for the itemType ${itemType} for the chain ${chain} at address ${address} was not found.`)
+        }
+        return {
+            data: `${item.toHuman()}`,
+        };
     }
 }
