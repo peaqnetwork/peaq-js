@@ -5,10 +5,6 @@ import { createStorageKeys } from '../../utils';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { defaultOptions } from '@peaq-network/types';
 
-
-
-
-
 enum FunctionSignatures {
     ADD_ITEM = "addItem(bytes,bytes)",
     GET_ITEM = "getItem(address,bytes)",
@@ -34,8 +30,14 @@ type GetItemOptions = {
     address: string;
     chain: string;
 }
+
 type GetItemResult = {
     data: string;
+}
+
+type UpdateItemOptions = {
+    itemType: string;
+    item: string;
 }
 
 export interface EvmTransaction {
@@ -119,14 +121,34 @@ export class DIDInterfaceStorage {
         const { itemType, address, chain } = options;
         this._checkEvmAddress(address);
         return await this._storageDecoder(itemType, address, chain);
+    }
 
-        
+    /**
+     * Adds a new item to peaq storage.
+     *
+     * @param UpdateItemOptions - The parameters this function is expecting:
+     *      @param itemType - The key at which the value is stored.
+     *      @param item - The value which is mapped to the itemType key to be updated.
+     * @returns tx - The transaction object for update item that a user can send manually.
+     */
+    public async updateItem(options: UpdateItemOptions): Promise<EvmTransaction> {
+        const { itemType, item } = options;
+        const createStorageFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.UPDATE_ITEM)).substring(0, 10);
 
-        // const tx: EvmTransaction = {
-        //     to: PrecompileAddresses.STORAGE,
-        //     data: "payload"
-        // };
-        // return tx;
+        const itemTypeBytes = ethers.hexlify(ethers.toUtf8Bytes(itemType));
+        const itemBytes = ethers.hexlify(ethers.toUtf8Bytes(item));
+
+        const params = this.abiCoder.encode(
+            ["bytes", "bytes"],
+            [itemTypeBytes, itemBytes]
+        );
+
+        let payload = params.replace("0x", createStorageFunctionSelector);
+        const tx: EvmTransaction = {
+            to: PrecompileAddresses.STORAGE,
+            data: payload
+        };
+        return tx;
     }
 
 

@@ -49,7 +49,7 @@ type GetItemResult = {
 }
 
 
-type UpdateItemResult = {
+export type UpdateItemResult = {
     message: string;
     block_hash: CodecHash;
     unsubscribe: () => void;
@@ -199,21 +199,25 @@ export class Storage extends Base {
 
     public async updateItem(options: UpdateItemOptions,
         statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-      ): Promise<UpdateItemResult> {
+      ): Promise<UpdateItemResult | EvmTransaction> {
         try {
-            const api = this._getApi();
-
             const {itemType, item, seed = ''} = options;
     
             // checks
             if (!itemType) throw new ItemTypeError('Item Type name is required');
             if (!item) throw new ItemError('Item name is required');
             if (seed !== '') this._checkSeed(seed);
-            
             // convert string to bytes to count before calling extrinsics
             if (stringToU8a(itemType).length > 64) throw new ItemTypeError('New Item Type cannot be larger than 64 bytes');
             if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
     
+             // EVM tx logic if chainType is set to EVM
+            if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+                const evm = new DIDInterfaceStorage();
+                return await evm.updateItem({itemType: itemType,  item: item})
+            }
+
+            const api = this._getApi();
             const keyPair = this._metadata?.pair || this._getKeyPair(seed);
             const attributeExtrinsic = api.tx?.['peaqStorage']?.['updateItem'](
                 itemType,
