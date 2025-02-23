@@ -417,6 +417,16 @@ export class Did extends Base {
 
     verificationMethod.setId(id);
 
+
+    // If EVM
+    if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+      verificationMethod.setType("EcdsaSecp256k1RecoveryMethod2020");
+      verificationMethod.setController(didControllerAddress as string);
+      verificationMethod.setPublicKeyMultibase(didControllerAddress as string);
+      return { verificationMethod, verificationId: id };
+    }
+
+    // Assume it is substrate chain
     if (verification.type == "Ed25519VerificationKey2020"){
       verificationMethod.setType("Ed25519VerificationKey2020");
     }
@@ -429,11 +439,12 @@ export class Did extends Base {
 
     verificationMethod.setController(didControllerAddress as string);
 
+    // check to see if use wants to set it manually
     if (verification?.publicKeyMultibase) {
       verificationMethod.setPublicKeyMultibase(verification?.publicKeyMultibase);
     }
     else {
-      // generate & set public key multibase BASED ON the didAccountAddress?? -> MAY NEED TO CHANGE TO CONTROLLER??
+      // TODO check with Iredia
       const publicKey = decodeAddress(didAccountAddress, false, 42)
       const publicKeyHex = u8aToHex(publicKey);
       const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
@@ -514,6 +525,11 @@ export class Did extends Base {
         keyCounter += 1;
       });
     }
+    else {
+      const { verificationId, verificationMethod } = this._setDefaultVerification(didAccountAddress.toString(), document.getController(), this._prefix as string, 1);
+      document.addVerificationMethods(verificationMethod);
+      document.addAuthentications(verificationId);
+    }
 
     if (customDocumentFields?.signature) {
         const signature = customDocumentFields?.signature;
@@ -582,6 +598,11 @@ export class Did extends Base {
         keyCounter += 1;
       })
     }
+    else {
+      const { verificationId, verificationMethod } = this._setDefaultVerification(didAccountAddress.toString(), newDocument.getController(), this._prefix as string, 1)
+      newDocument.addVerificationMethods(verificationMethod);
+      newDocument.addAuthentications(verificationId);
+    }
 
     if (customDocumentFields?.signature) {
       const signature = customDocumentFields?.signature;
@@ -602,6 +623,17 @@ export class Did extends Base {
     // remove '0x' prefix if present
     const hash = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
     return hash;
+  }
+
+  private _setDefaultVerification(didAccountAddress: string, controller: string, prefix: string, counter: number) {
+    let verification: Verification;
+    if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+      verification = {type: "EcdsaSecp256k1RecoveryMethod2020"};
+    }
+    else {
+      verification = {type: "Sr25519VerificationKey2020"};
+    }
+    return this._createVerificationMethod(verification, didAccountAddress, controller, prefix, counter);
   }
 
   private _setController(customDocumentFields: UpdateDocumentFields, newDocument: peaqDidProto.Document){

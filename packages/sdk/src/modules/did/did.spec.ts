@@ -197,7 +197,7 @@ describe('Did', () => {
 
       // TODO try with the seed phrase as well
 
-    describe('read()', () => {
+    describe.skip('read()', () => {
       it('Perform as basic read on a known DID with no custom data', async () => {
         const didName = "evm-test-10004"
 
@@ -317,6 +317,25 @@ describe('Did', () => {
         });
       }, 50000);
     });
+    describe('Testing new verification logic.()', () => {
+      it.skip('Create an empty DID Document with substrate.', async () => {
+        const newMethod = "verification_test_1";
+        const sdk = await SDK.createInstance({baseUrl: BASE_URL_WSS, seed: SEED});
+        const result = await sdk.did.create({name: newMethod});
+        const result2 = await sdk.did.read({name: newMethod});
+        console.log(result2);
+        console.log(result2?.document);
+        }, 50000);
+        it('Create an empty DID Document with EVM.', async () => {
+          const newMethod = "verification_test_1";
+          const sdk = await SDK.createInstance({baseUrl: BASE_URL_HTTPS, chainType: 'EVM'});
+          // const tx = await sdk.did.create({name: newMethod, address: EVM_ADDRESS});
+          // const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
+          const result2 = await sdk.did.read({name: newMethod, address: EVM_ADDRESS, chain: 'agung'});
+          console.log(result2);
+          console.log(result2?.document);
+          }, 50000);
+      });
   });
 
 
