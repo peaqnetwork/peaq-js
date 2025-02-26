@@ -22,6 +22,9 @@ import {
   User2Group,
 } from '@peaq-network/types/interfaces';
 
+import { RBACInterfaceEVM, EvmTransaction } from './evm_interface_rbac';
+
+
 interface CreateNewRole {
   roleName: string;
   roleId?: string;
@@ -99,9 +102,11 @@ interface FetchPermission {
   permissionId: string;
 }
 
+// TODO update
 interface FetchRole {
   owner: Address;
   roleId: string;
+  chain?: string;
 }
 
 interface FetchGroups {
@@ -114,6 +119,7 @@ interface FetchPermissions {
 
 interface FetchRoles {
   owner: Address;
+  chain?: string;
 }
 
 interface FetchRolePermissions {
@@ -200,7 +206,7 @@ export class RBAC extends Base {
 
   public async createRole(options: CreateNewRole): Promise<{
     roleId: string;
-  }> {
+  } | EvmTransaction> {
     try {
       const { roleName, roleId = '', address = '', seed = '' } = options;
       if (!roleName) throw new Error('Name is required');
@@ -208,6 +214,12 @@ export class RBAC extends Base {
         throw new Error('Role Id length should be 32 char only');
       const generatedRoleId = v4().slice(0, 32);
       const convertedRoleId = stringToU8a(roleId || generatedRoleId);
+
+      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+          const evm = new RBACInterfaceEVM();
+          return await evm.createRole({roleName: roleName,  roleId: convertedRoleId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const addRoleExtrinsics = api.tx?.['peaqRbac']?.['addRole'](
@@ -535,10 +547,16 @@ export class RBAC extends Base {
 
   public async fetchRoles(options: FetchRoles): Promise<FetchResponseData[]> {
     try {
-      const { owner } = options;
+      const { owner, chain = '' } = options;
       if (!owner) throw new Error('Invalid owner address');
-      const api = this._getApi();
 
+      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
+        const evm = new RBACInterfaceEVM();
+        return await evm.fetchRoles({owner: owner, chain: chain});
+    }
+
+      const api = this._getApi();
       const roles = (await api.query?.['peaqRbac']?.['roleStore'](
         owner
       )) as unknown as Entity[];
@@ -805,8 +823,17 @@ export class RBAC extends Base {
 
   public async fetchRole(option: FetchRole): Promise<FetchResponseData | undefined> {
     try {
-      const { owner, roleId } = option;
+      const { owner, roleId, chain = ''  } = option;
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        if (!owner) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
+        const evm = new RBACInterfaceEVM();
+        return await evm.fetchRole({owner: owner,  roleId: roleId, chain: chain});
+    }
+
+
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {

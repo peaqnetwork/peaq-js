@@ -28,11 +28,11 @@ type RemoveItemOptions = {
 type GetItemOptions = {
     itemType: string;
     address: string;
-    chain: string;
+    wssBaseUrl: string;
 }
 
 type GetItemResult = {
-    data: string;
+    [key: string]: string;
 }
 
 type UpdateItemOptions = {
@@ -93,7 +93,6 @@ export class DIDInterfaceStorage {
     public async removeItem(options: RemoveItemOptions): Promise<EvmTransaction> {
         const { itemType } = options;
         const deleteStorageFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.REMOVE_ITEM)).substring(0, 10);
-
         const itemTypeBytes = ethers.hexlify(ethers.toUtf8Bytes(itemType));
 
         const params = this.abiCoder.encode(
@@ -118,9 +117,9 @@ export class DIDInterfaceStorage {
      * @returns - Read storage item.
      */
     public async getItem(options: GetItemOptions): Promise<GetItemResult> {
-        const { itemType, address, chain } = options;
+        const { itemType, address, wssBaseUrl } = options;
         this._checkEvmAddress(address);
-        return await this._storageDecoder(itemType, address, chain);
+        return await this._storageDecoder(itemType, address, wssBaseUrl);
     }
 
     /**
@@ -161,10 +160,7 @@ export class DIDInterfaceStorage {
         }
     }
 
-    // GET feedback since we need to build an WSProvider... but just want to use rpc??
-    // 
-    // Maybe have var to see what type and manually set? Maybe can do based on baseUrl set in beginning, but that can change.
-    private async _storageDecoder(itemType: string, address: Address, chain: string): Promise <GetItemResult> {
+    private async _storageDecoder(itemType: string, address: Address, wssBaseUrl: string): Promise <GetItemResult> {
         // Convert EVM to Substrate address
         const substrateAddress = evmToAddress(address);
 
@@ -177,28 +173,28 @@ export class DIDInterfaceStorage {
                 value: itemType, type: CreateStorageKeysEnum.STANDARD
             },
         ]);
-        let wsp;
-        // maybe: say if agung in baseUrl use agung, if not default to peaq??
-        // WHAT url should we use??
-        if (chain.toLocaleUpperCase() == 'PEAQ') {
-            wsp = new WsProvider("wss://peaq.api.onfinality.io/ws?apikey=d93a0743-d97b-4f8d-a502-2ec11fa9b899");
-        }
-        else if (chain.toLocaleUpperCase() == 'AGUNG'){
-            wsp = new WsProvider("wss://peaq-agung.api.onfinality.io/ws?apikey=b62c4890-668a-4f62-9a7f-e76f1469fb4c");
-        }
-        else {
-            throw new Error(`Chain of name ${chain} is not recognized. Please set to either 'peaq' or agung'.`)
-        }
         // init the api connection
-        var api = await (await ApiPromise.create({ provider: wsp, noInitWarn: true, ...defaultOptions })).isReady;
+        const api = await this._getApiProvider(wssBaseUrl);
+        
         const item = (await api.query?.['peaqStorage']?.['itemStore'](
             hashed_key
         ));
         if (item.toHuman() == ''){
-            throw new Error(`Data for the itemType ${itemType} for the chain ${chain} at address ${address} was not found.`)
+            throw new Error(`Data for the name ${name} at the wss url ${wssBaseUrl} at address ${address} was not found.`);
         }
         return {
-            data: `${item.toHuman()}`,
+            [itemType]: `${item.toHuman()}`,
         };
+    }
+
+    private async _getApiProvider(wssBaseUrl: string): Promise<ApiPromise> {
+        try {
+            const wsp = new WsProvider(wssBaseUrl);
+            var api = await (await ApiPromise.create({ provider: wsp, noInitWarn: true, ...defaultOptions })).isReady;
+            return api;
+        }
+        catch(error) {
+            throw new Error(`WSS base url of ${wssBaseUrl}, is not valid with error message: ${error}`)
+        }
     }
 }

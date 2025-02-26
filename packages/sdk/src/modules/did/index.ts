@@ -9,7 +9,7 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import { createStorageKeys } from '../../utils';
 import { GenerateDidError, CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
 import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
-import { CreateStorageKeysEnum, DidDocument } from '../../types';
+import { ChainType, CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
 
 import { DIDInterfaceEVM, EvmTransaction } from './evm_interface_did';
@@ -71,7 +71,7 @@ interface CreateDidOptions {
 interface ReadDidOptions {
   name: string;
   address?: Address;
-  chain?: string;
+  wssBaseUrl?: string;
 }
 
 interface UpdateDidOptions {
@@ -193,7 +193,7 @@ export class Did extends Base {
       if (seed !== '') this._checkSeed(seed);
 
       // EVM tx logic if chainType is set to EVM
-      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+      if (this._metadata?.chainType  == ChainType.EVM) {
         // address is required for EVM since it is not stored with the key-pair
         if (!address) throw new Error("Address is required when creating an EVM transaction since an Account is never stored from seed.");
           const evm = new DIDInterfaceEVM(this._metadata);
@@ -242,14 +242,14 @@ export class Did extends Base {
    */
   public async read(options: ReadDidOptions): Promise<ReadDidResponse | null> {
     try {
-      const { name, address = '', chain = '' } = options;
+      const { name, address = '', wssBaseUrl = '' } = options;
       if (!name) throw new Error('Name is required when reading a DID.');
 
-      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+      if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
-        if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
         const evm = new DIDInterfaceEVM(this._metadata);
-        return await evm.read({name: name,  address: address, chain: chain})
+        return await evm.read({name: name,  address: address, wssBaseUrl: wssBaseUrl})
       }
 
       const api = this._getApi();
@@ -299,7 +299,7 @@ export class Did extends Base {
       if (!name) throw new NameError('Name is required when updating a DID.');
       if (seed !== '') this._checkSeed(seed);
 
-      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+      if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when updating an EVM transaction since an Account is never stored from seed.");
         if (!customDocumentFields) throw new NoCustomFieldsError('DID Document fields must be configured before manually changing.');
         const evm = new DIDInterfaceEVM(this._metadata);
@@ -364,7 +364,7 @@ export class Did extends Base {
       if (!name) throw new NameError('Name is required when removing a DID.');
       if (seed !== '') this._checkSeed(seed);
 
-      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+      if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
         const evm = new DIDInterfaceEVM(this._metadata);
         return await evm.remove({name: name,  address: address})
@@ -419,10 +419,13 @@ export class Did extends Base {
 
 
     // If EVM
-    if (this._metadata?.chainType?.toUpperCase() == "EVM") {
-      verificationMethod.setType("EcdsaSecp256k1RecoveryMethod2020");
+    if (this._metadata?.chainType == ChainType.EVM) {
+      if (verification.type != "EcdsaSecp256k1RecoveryMethod2020"){
+        throw new Error(`Verification Type for EVM of ${verification.type} not recognized. Currently only supports method of "EcdsaSecp256k1RecoveryMethod2020" for EVM txs.`);
+      }
+      verificationMethod.setType(verification.type);
       verificationMethod.setController(didControllerAddress as string);
-      verificationMethod.setPublicKeyMultibase(didControllerAddress as string);
+      verificationMethod.setPublicKeyMultibase(didAccountAddress as string); // make sure it is set correctly.
       return { verificationMethod, verificationId: id };
     }
 
@@ -444,7 +447,6 @@ export class Did extends Base {
       verificationMethod.setPublicKeyMultibase(verification?.publicKeyMultibase);
     }
     else {
-      // TODO check with Iredia
       const publicKey = decodeAddress(didAccountAddress, false, 42)
       const publicKeyHex = u8aToHex(publicKey);
       const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
@@ -456,8 +458,8 @@ export class Did extends Base {
   }
 
   private _createSignature(signature: Signature) {
-    if (!["Ed25519VerificationKey2020", "Sr25519VerificationKey2020"].includes(signature.type)) {
-      throw new Error('Signature Type must be "Ed25519VerificationKey2020" or "Sr25519VerificationKey2020"');
+    if (!["EcdsaSecp256k1RecoveryMethod2020", "Ed25519VerificationKey2020", "Sr25519VerificationKey2020"].includes(signature.type)) {
+      throw new Error('Signature Type must be "EcdsaSecp256k1RecoveryMethod2020", "Ed25519VerificationKey2020" or "Sr25519VerificationKey2020"');
   }
     if (!signature.issuer) throw new Error('Signature Issuer is required');
     if (!signature.hash) throw new Error('Signature Hash is required');
@@ -524,11 +526,6 @@ export class Did extends Base {
         document.addAuthentications(verificationId);
         keyCounter += 1;
       });
-    }
-    else {
-      const { verificationId, verificationMethod } = this._setDefaultVerification(didAccountAddress.toString(), document.getController(), this._prefix as string, 1);
-      document.addVerificationMethods(verificationMethod);
-      document.addAuthentications(verificationId);
     }
 
     if (customDocumentFields?.signature) {
@@ -598,11 +595,6 @@ export class Did extends Base {
         keyCounter += 1;
       })
     }
-    else {
-      const { verificationId, verificationMethod } = this._setDefaultVerification(didAccountAddress.toString(), newDocument.getController(), this._prefix as string, 1)
-      newDocument.addVerificationMethods(verificationMethod);
-      newDocument.addAuthentications(verificationId);
-    }
 
     if (customDocumentFields?.signature) {
       const signature = customDocumentFields?.signature;
@@ -623,17 +615,6 @@ export class Did extends Base {
     // remove '0x' prefix if present
     const hash = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
     return hash;
-  }
-
-  private _setDefaultVerification(didAccountAddress: string, controller: string, prefix: string, counter: number) {
-    let verification: Verification;
-    if (this._metadata?.chainType?.toUpperCase() == "EVM") {
-      verification = {type: "EcdsaSecp256k1RecoveryMethod2020"};
-    }
-    else {
-      verification = {type: "Sr25519VerificationKey2020"};
-    }
-    return this._createVerificationMethod(verification, didAccountAddress, controller, prefix, counter);
   }
 
   private _setController(customDocumentFields: UpdateDocumentFields, newDocument: peaqDidProto.Document){

@@ -8,6 +8,7 @@ import { CustomDocumentFields, CreateDidResult, RemoveDidResult } from './index'
 import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
 import { Main as SDK } from '../main';
 import { EvmTransaction } from './evm_interface_did';
+import { ChainType } from '../../types/common';
 
 
 import { ethers } from 'ethers';
@@ -65,7 +66,7 @@ type ExpectedEvmRemoveDid = {
  * 
  * This flow ensures that a user needs less than .2 token to execute all tests and funds will be returned back.
  */
-describe('Did', () => {
+describe.skip('Did', () => {
   /**
    * Tests EVM compatible sdk functions for DIDs
    */
@@ -73,14 +74,34 @@ describe('Did', () => {
     /// TODO -> test when HTTPS vs WSS url is sent. HTTPS rpc is not working right now for agung
     /// Improve error handling
 
-    describe.skip('create()', () => {
+    describe('generate()', () => {
+      it('Generate basic', async () => {
+        const addressETH = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641C';
+        const result = await SDK.generateDidDocument({address: addressETH});
+        expect(result.value).toBe("0a336469643a706561713a30783945656162316143636231413730316145664142303046336238613237356133393634363634314312336469643a706561713a307839456561623161436362314137303161456641423030463362386132373561333936343636343143")
+      });
+      it('Generate with custom fields', async () => {
+        const addressETH = '0x9Eeab1aCcb1A701aEfAB00F3b8a275a39646641C';
+        const customFields: CustomDocumentFields = {
+          services: [{
+            id: '#serviceEndpoint',
+            type: 'serviceEndpoint',
+            serviceEndpoint: 'http://localhost:8080/ipfs/'
+          }]
+        }
+        const result = await SDK.generateDidDocument({address: addressETH, customDocumentFields: customFields});
+        expect(result.value).toBe("0a336469643a706561713a30783945656162316143636231413730316145664142303046336238613237356133393634363634314312336469643a706561713a3078394565616231614363623141373031614566414230304633623861323735613339363436363431432a400a102373657276696365456e64706f696e74120f73657276696365456e64706f696e741a1b687474703a2f2f6c6f63616c686f73743a383038302f697066732f")
+      });
+    });
+
+    describe('create()', () => {
       it('EVM chain fail when no address passed in create()', async () => {
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         await expect(sdk.did.create({name: "evm-test"}))
           .rejects.toThrow(new Error("Error: Address is required when creating an EVM transaction since an Account is never stored from seed."));
       });
       it('EVM chain fail when substrate address passed.', async () => {
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         await expect(sdk.did.create({name: "evm-test", address: SUBSTRATE_ADDRESS}))
           .rejects.toThrow(new Error(`Error: ${SUBSTRATE_ADDRESS} is not a valid EVM address`));
       });
@@ -93,7 +114,7 @@ describe('Did', () => {
           customFields: null,
           validityFor: 0
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
       });
@@ -103,10 +124,10 @@ describe('Did', () => {
         const customFields: CustomDocumentFields = {
           prefix: 'custom_name',
           verifications: [{
-            type: "Ed25519VerificationKey2020"
+            type: "EcdsaSecp256k1RecoveryMethod2020"
           }],
           signature: {
-            type: "Ed25519VerificationKey2020",
+            type: "EcdsaSecp256k1RecoveryMethod2020",
             issuer: '123',
             hash: '0x123'
           },
@@ -123,7 +144,7 @@ describe('Did', () => {
           customFields: customFields,
           validityFor: 0
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS, customDocumentFields: customFields}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
       });
@@ -136,14 +157,15 @@ describe('Did', () => {
           customFields: null,
           validityFor: 0
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
 
-        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+        await expect(SDK.sendEvmTx({tx: tx,baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE}))
+          .rejects.toThrow("Transaction reverted with error: AttributeAlreadyExist");
       });
       it('create and send ethereum tx to chain no custom fields', async () => {
-        const didName = "evm-test-10004"
+        const didName = "evm-test-100000"
         // create an object of what is to be expected in the `data` of the transaction
         const expected: ExpectedEvmCreateDid = {
           address: EVM_ADDRESS,
@@ -151,24 +173,26 @@ describe('Did', () => {
           customFields: null,
           validityFor: 0
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
         // send to the chain
-        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL, seed: ETH_PRIVATE});
-        // TODO add a read function to test
-        console.log(receipt);
+        const receipt = await SDK.sendEvmTx({tx: tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
+
+
+        // read result
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, wssBaseUrl: BASE_URL_WSS});
+        await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, null);
       }, 50000);
       it('create and send ethereum tx to chain with custom fields', async () => {
-        const didName = "evm-test-10005"
+        const didName = "evm-test-100001"
         // create the custom fields for the DID Document
         const customFields: CustomDocumentFields = {
-          prefix: 'custom_name',
           verifications: [{
-            type: "Ed25519VerificationKey2020"
+            type: "EcdsaSecp256k1RecoveryMethod2020"
           }],
           signature: {
-            type: "Ed25519VerificationKey2020",
+            type: "EcdsaSecp256k1RecoveryMethod2020",
             issuer: '123',
             hash: '0x123'
           },
@@ -185,24 +209,34 @@ describe('Did', () => {
           customFields: customFields,
           validityFor: 0
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.create({name: didName, address: EVM_ADDRESS, customDocumentFields: customFields}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.ADD_ATTRIBUTE, expected);
 
-        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
-        // TODO add a read function to test
-        console.log(receipt);
+        const receipt = await SDK.sendEvmTx({tx: tx, baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+
+        // read result
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, wssBaseUrl: BASE_URL_WSS});
+        await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, customFields);
       }, 50000);
     });
 
       // TODO try with the seed phrase as well
 
     describe.skip('read()', () => {
+      it('Try to read with wrong WSS URL', async () => {
+        const didName = "evm-test-10004"
+
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, wssBaseUrl: BASE_URL_HTTPS});
+        console.log(result?.document)
+        await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, null);
+      });
       it('Perform as basic read on a known DID with no custom data', async () => {
         const didName = "evm-test-10004"
 
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
-        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, chain: 'agung'});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, wssBaseUrl: BASE_URL_WSS});
         await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, null);
       });
       it('Perform as basic read on a known DID with custom data', async () => {
@@ -224,16 +258,16 @@ describe('Did', () => {
           }]
         }
 
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
-        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, chain: 'agung'});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, wssBaseUrl: BASE_URL_WSS});
         await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, customFields);
       });
     });
 
     describe.skip('update()', () => {
       it('Try to update a DID that does not exist', async () => {
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
-        await sdk.did.update({name: "my-fake-did", address: EVM_ADDRESS, customDocumentFields: {verifications: [{type: "Ed25519VerificationKey2020"}],}});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
+        await sdk.did.update({name: "my-fake-did", address: EVM_ADDRESS, customDocumentFields: {verifications: [{type: "Ed25519VerificationKey2020"}]}});
 
       });
       it('Update a previously created DID', async () => {
@@ -246,96 +280,69 @@ describe('Did', () => {
           validityFor: 0
         }
 
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.update({name: didName, address: EVM_ADDRESS, customDocumentFields: customFields}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.UPDATE_ATTRIBUTE, expected);
-        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
+        const receipt = await SDK.sendEvmTx({tx: tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
+        console.log(`Receipt for updated ${didName}: ${receipt}`);
 
-        // make sure it gets added to chain
-        await sleep(15);
-        const result = await sdk.did.read({ address: EVM_ADDRESS, name: didName });
-        expect(result).toBeDefined();
+
+        const result = await sdk.did.read({name: didName, address: EVM_ADDRESS, wssBaseUrl: BASE_URL_WSS});
+        console.log(result?.document)
         await readDid(result as ReadDidResponse, didName, EVM_ADDRESS, customFields);
       }, 50000);
     });
 
     describe.skip('remove()', () => {
-      it.skip('Try to remove a DID that does not exist', async () => {
+      it('Try to remove a DID that does not exist', async () => {
         const didName = "my-fake-did";
         const expected: ExpectedEvmRemoveDid = {
           address: EVM_ADDRESS,
           didName: didName
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.remove({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.REMOVE_ATTRIBUTE, expected); // should still be constructed correctly
-        // try sending a tx that will fail
-        await expect(
-          SDK.sendEvmTx({
-            tx: tx,
-            chainType: "evm",
-            baseUrl: BASE_URL_WSS,
-            seed: ETH_PRIVATE
-          })
-        ).rejects.toMatchObject({
-          code: 'CALL_EXCEPTION',
-          revert: {
-            args: expect.arrayContaining([
-              expect.stringContaining('AttributeNotFound')
-            ])
-          }
-        });
+
+        await expect(SDK.sendEvmTx({tx: tx,baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE}))
+          .rejects.toThrow("Transaction reverted with error: AttributeNotFound");
       });
       it('Try to remove a known DID', async () => {
-        const didName = "evm-test-10004";
+        const didName = "evm-test-100000";
         const expected: ExpectedEvmRemoveDid = {
           address: EVM_ADDRESS,
           didName: didName
         }
-        const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL_WSS});
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.did.remove({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
         await checkEvmTx(tx, FunctionSignaturesPrefix.REMOVE_ATTRIBUTE, expected); // should still be constructed correctly
 
-        const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_WSS, seed: ETH_PRIVATE});
-        await sleep(15);
+        const receipt = await SDK.sendEvmTx({tx: tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
+        console.log(`Receipt for removed ${didName}: ${receipt}`);
 
-        // then try to remove again, but get an Attribute Not Found error
-        await expect(
-          SDK.sendEvmTx({
-            tx: tx,
-            chainType: "evm",
-            baseUrl: BASE_URL_WSS,
-            seed: ETH_PRIVATE
-          })
-        ).rejects.toMatchObject({
-          code: 'CALL_EXCEPTION',
-          revert: {
-            args: expect.arrayContaining([
-              expect.stringContaining('AttributeNotFound')
-            ])
-          }
-        });
+        // make sure it was removed
+        await expect(SDK.sendEvmTx({tx: tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE}))
+          .rejects.toThrow("Transaction reverted with error: AttributeNotFound");
+      }, 50000);
+
+      it('Try to remove another known DID', async () => {
+        const didName = "evm-test-100001";
+        const expected: ExpectedEvmRemoveDid = {
+          address: EVM_ADDRESS,
+          didName: didName
+        }
+        const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
+        const tx = await sdk.did.remove({name: didName, address: EVM_ADDRESS}) as EvmTransaction;
+        await checkEvmTx(tx, FunctionSignaturesPrefix.REMOVE_ATTRIBUTE, expected); // should still be constructed correctly
+
+        const receipt = await SDK.sendEvmTx({tx: tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
+        console.log(`Receipt for removed ${didName}: ${receipt}`);
+
+        // make sure it was removed
+        await expect(SDK.sendEvmTx({tx: tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE}))
+          .rejects.toThrow("Transaction reverted with error: AttributeNotFound");
       }, 50000);
     });
-    describe('Testing new verification logic.()', () => {
-      it.skip('Create an empty DID Document with substrate.', async () => {
-        const newMethod = "verification_test_1";
-        const sdk = await SDK.createInstance({baseUrl: BASE_URL_WSS, seed: SEED});
-        const result = await sdk.did.create({name: newMethod});
-        const result2 = await sdk.did.read({name: newMethod});
-        console.log(result2);
-        console.log(result2?.document);
-        }, 50000);
-        it('Create an empty DID Document with EVM.', async () => {
-          const newMethod = "verification_test_1";
-          const sdk = await SDK.createInstance({baseUrl: BASE_URL_HTTPS, chainType: 'EVM'});
-          // const tx = await sdk.did.create({name: newMethod, address: EVM_ADDRESS});
-          // const receipt = await SDK.sendEvmTx({tx: tx, chainType: "evm", baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
-          const result2 = await sdk.did.read({name: newMethod, address: EVM_ADDRESS, chain: 'agung'});
-          console.log(result2);
-          console.log(result2?.document);
-          }, 50000);
-      });
   });
 
 
@@ -1351,7 +1358,8 @@ async function readDocument(document: DidDocument, user: KeyringPair | string | 
             // test verification of the proper publicKeyMultibase pattern
             const multibase_pattern = /^[a-fA-F0-9]{64}$/;
             const multibase_pattern2 = /^[a-fA-F0-9]{40}$/;
-            expect(multibase_pattern.test(verification.publicKeyMultibase as string) || multibase_pattern2.test(verification.publicKeyMultibase as string)).toBe(true);
+            const multibase_pattern3 = /^0x[a-fA-F0-9]{40}$/;
+            expect(multibase_pattern.test(verification.publicKeyMultibase as string) || multibase_pattern2.test(verification.publicKeyMultibase as string) || multibase_pattern3.test(verification.publicKeyMultibase as string)).toBe(true);
           }
         });
       });

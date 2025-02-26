@@ -3,7 +3,7 @@ import { mnemonicValidate, cryptoWaitReady } from '@polkadot/util-crypto';
 import { defaultOptions } from '@peaq-network/types';
 
 import { unsubscribeRuntimeVersion } from '../../utils';
-import type { Options, SDKMetadata, SendEvmTx } from '../../types';
+import { ChainType, type CreateInstanceOptions, type SDKMetadata, type SendEvmTx } from '../../types';
 
 import { Base } from '../base';
 import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
@@ -17,7 +17,7 @@ import { ethers } from 'ethers';
  * Main class for interacting with the SDK.
  */
 export class Main extends Base {
-  private readonly _options: Options;
+  private readonly _options: CreateInstanceOptions;
   protected override _api: ApiPromise | undefined;
   private _metadata: SDKMetadata;
 
@@ -26,12 +26,12 @@ export class Main extends Base {
   public storage: Storage;
   private ptp: Ptp;
 
-  constructor(options: Options) {
+  constructor(options: CreateInstanceOptions) {
     super();
     this._options = options;
     this._metadata = {
       "baseUrl": options.baseUrl, 
-      "chainType": options.chainType?.toUpperCase()
+      "chainType": options.chainType
     };
     
     this._api = this._createApi();
@@ -45,13 +45,13 @@ export class Main extends Base {
   /**
    * Creates a new instance of the SDK and connects to the network.
    *
-   * @param options - Options for the SDK with fields:
+   * @param CreateInstanceOptions - Options for the SDK with fields:
    *    @param chainType - Used to differentiate between Substrate and EVM txs.
    *    @param baseUrl - RPC url that the API will be connected to.
    *    @param seed - Private key that will sign the transaction.
    * @returns sdk - The SDK built with executable class functions.  
    */
-  public static async createInstance(options: Options): Promise<Main> {
+  public static async createInstance(options: CreateInstanceOptions): Promise<Main> {
     await cryptoWaitReady();
     const sdk = new Main(options);
     await sdk.connect();
@@ -80,7 +80,7 @@ export class Main extends Base {
   public async connect(): Promise<void> {
     try {
       // can skip if evm set
-      if (this._metadata.chainType == "EVM") {
+      if (this._metadata.chainType == ChainType.EVM) {
         return
       }
       if (!this._api) return;
@@ -138,7 +138,7 @@ export class Main extends Base {
    * @returns ApiPromise - Instance of the Substrate wss connection.
    */
   private _createApi(): ApiPromise | undefined {
-      if (this._metadata.chainType == "EVM") {
+      if (this._metadata.chainType == ChainType.EVM) {
         if (!this._metadata.baseUrl.startsWith("https://")) {
           throw new Error(
             `Invalid base URL for EVM interactions: ${this._metadata.baseUrl}. It must start with 'https://'.`
@@ -150,7 +150,7 @@ export class Main extends Base {
         }
   
       // Sets up a substrate api connection if chain_id is set or undefined (defaults to this)
-      else if (this._metadata.chainType == "SUBSTRATE" || this._metadata.chainType == undefined ) {
+      else if (this._metadata.chainType == ChainType.SUBSTRATE || this._metadata.chainType == undefined ) {
         if (!this._metadata.baseUrl.startsWith("wss://")) {
           throw new Error(
             `Invalid base URL for Substrate interactions: ${this._metadata.baseUrl}. It must start with 'wss://'.`
@@ -181,25 +181,19 @@ export class Main extends Base {
   public static async sendEvmTx(options: SendEvmTx) {
     try {
       let provider;
-      if (options.chainType.toLocaleUpperCase() == "EVM"){
-        if (options.baseUrl.startsWith('wss')) {
-          // WebSocketProvider for WebSocket URLs
-          provider =  new ethers.WebSocketProvider(options.baseUrl);
-        } else if (options.baseUrl.startsWith('https')) {
-          // JsonRpcProvider for HTTPS URLs
-          provider =  new ethers.JsonRpcProvider(options.baseUrl);
-        } else {
-          throw new Error('Unsupported protocol in baseUrl. Only "wss" and "https" are supported.');
-        }
-        const signer = this._isEvmWalletInputValid(options.seed, provider);
-        const response = await signer.sendTransaction(options.tx);
-        const receipt = await response.wait().finally(); // TODO figure out why it is hanging right here.
-        return receipt
+      if (options.baseUrl.startsWith('wss')) {
+        throw new Error(`Invalid base URL for EVM interactions: ${options.baseUrl}. It must start with 'https://'.`);
+      } else if (options.baseUrl.startsWith('https')) {
+        // JsonRpcProvider for HTTPS URLs
+        provider =  new ethers.JsonRpcProvider(options.baseUrl);
+      } else {
+        throw new Error(`Invalid base URL for EVM interactions: ${options.baseUrl}. It must start with 'https://'.`);
       }
-      else{
-        throw new Error(`Chain type of ${options.chainType} is not supported when trying to send EVM transactions`)
+      const signer = this._isEvmWalletInputValid(options.seed, provider);
+      const response = await signer.sendTransaction(options.tx);
+      const receipt = await response.wait().finally(); // TODO figure out why it is hanging right here.
+      return receipt
       }
-    }
     // Basic error catching: TODO - create better object
   catch(error) {
     let errorMessage = "";

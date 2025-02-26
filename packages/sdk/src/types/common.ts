@@ -7,22 +7,26 @@ import type { SubmittableExtrinsic } from '@polkadot/api-base/types';
 import type { Event, Phase } from "@polkadot/types/interfaces";
 import { Codec } from '@polkadot/types/types'
 
+export enum ChainType {
+  EVM = "evm",
+  SUBSTRATE = "substrate"
+}
+
 export type Address = AccountId32 | string;
 
+export interface CreateInstanceOptions {
+  chainType?: ChainType;
+  baseUrl: string;
+  seed?: string;
+}
 export interface SDKMetadata {
-  chainType?: string;
+  chainType?: ChainType;
   baseUrl: string;
   pair?: KeyringPair;
 }
 
-export interface Options {
-  chainType?: string;
-  baseUrl: string;
-  seed?: string;
-}
 export interface SendEvmTx {
   tx: Object;
-  chainType: string;
   baseUrl: string;
   seed: string;
 }

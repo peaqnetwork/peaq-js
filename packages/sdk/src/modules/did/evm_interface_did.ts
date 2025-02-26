@@ -32,7 +32,7 @@ interface CreateDidOptions {
 interface ReadDidOptions {
   name: string;
   address: Address;
-  chain: string;
+  wssBaseUrl: string;
 }
 
 interface UpdateDidOptions {
@@ -108,28 +108,9 @@ export class DIDInterfaceEVM {
      * @returns tx - The read DID Document found.
      */
     public async read(options: ReadDidOptions): Promise<ReadDidResponse | null>  {
-        const { name, address, chain } = options;
+        const { name, address, wssBaseUrl } = options;
         this._checkEvmAddress(address);
-        return this._storageDecoder(name, address, chain)
-
-        // DEPRECATED CODE BELOW:
-        // const readDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.READ_ATTRIBUTE)).substring(0, 10);
-        // const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
-
-        // const params = this.abiCoder.encode(
-        //     ["address", "bytes"],
-        //     [address, didName]
-        // );
-
-        // let payload = params.replace("0x", readDidFunctionSelector);
-        // const provider = this._createProvider(this._metadata.baseUrl);
-
-        // // TODO use Iredia storage key implementation
-        // const result = await provider.call({
-        //     to: PrecompileAddresses.DID,
-        //     data: payload,
-        // });
-        // return this._decodeReadAttribute(result);
+        return this._storageDecoder(name, address, wssBaseUrl);
     }
 
      /**
@@ -209,14 +190,7 @@ export class DIDInterfaceEVM {
         }
     }
 
-    /**
-     * TO DEPRECIATE - Used to read DID Document (use storage key)
-     */
-    private _createProvider(baseUrl: string): ethers.Provider {
-          return new ethers.JsonRpcProvider(baseUrl);
-      }
-
-private async _storageDecoder(name: string, address: Address, chain: string) {
+    private async _storageDecoder(name: string, address: Address, wssBaseUrl: string) {
         // Convert EVM to Substrate address
         const substrateAddress = evmToAddress(address);
 
@@ -229,20 +203,8 @@ private async _storageDecoder(name: string, address: Address, chain: string) {
                 value: name, type: CreateStorageKeysEnum.STANDARD
             },
         ]);
-        let wsp;
-        // maybe: say if agung in baseUrl use agung, if not default to peaq??
-        // WHAT url should we use??
-        if (chain.toLocaleUpperCase() == 'PEAQ') {
-            wsp = new WsProvider("wss://peaq.api.onfinality.io/ws?apikey=d93a0743-d97b-4f8d-a502-2ec11fa9b899");
-        }
-        else if (chain.toLocaleUpperCase() == 'AGUNG'){
-            wsp = new WsProvider("wss://peaq-agung.api.onfinality.io/ws?apikey=b62c4890-668a-4f62-9a7f-e76f1469fb4c");
-        }
-        else {
-            throw new Error(`Chain of name ${chain} is not recognized. Please set to either 'peaq' or agung'.`)
-        }
-        // init the api connection
-        var api = await (await ApiPromise.create({ provider: wsp, noInitWarn: true, ...defaultOptions })).isReady;
+
+        const api = await this._getApiProvider(wssBaseUrl);
         
         // read did from store
         const did = (await api.query?.['peaqDid']?.['attributeStore'](
@@ -250,7 +212,7 @@ private async _storageDecoder(name: string, address: Address, chain: string) {
         )) as unknown as Attribute;
 
         if (!did || did.isStorageFallback) {
-            throw new Error(`Data for the name ${name} for the chain ${chain} at address ${address} was not found.`);
+            throw new Error(`Data for the name ${name} at the wss url ${wssBaseUrl} at address ${address} was not found.`);
         }
 
         const didValue = String(did.toHuman()['value']);
@@ -261,58 +223,14 @@ private async _storageDecoder(name: string, address: Address, chain: string) {
         } as ReadDidResponse;
     }
 
-    /**
-     * DEPRECIATED - Used to decode a read DID Document (use storage key)
-     * 
-     * TODO implement Iredia's feedback
-     */
-    private _decodeReadAttribute(result: string): ReadDidResponse {
+    private async _getApiProvider(wssBaseUrl: string): Promise<ApiPromise> {
         try {
-            // Remove '0x' from result if present 
-            const resultHex = result.startsWith("0x") ? result.slice(2) : result;
-
-            // bytes 0 - 191 are fixed for the header. That is where we can extract the validity and created values
-
-            // --- Decode the header ---
-            // Word 1: bytes 96–127 is validity (uint32)
-            const validityHex = resultHex.slice(96 * 2, 128 * 2); // might have to change to 127
-            const validity = parseInt(validityHex, 16).toString();
-            const validityFormatted = validity.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-
-            // Word 2: bytes 128–159 is the created field (uint256)
-            const createdHex = resultHex.slice(128 * 2, 160 * 2);
-            const created = Number(BigInt("0x" + createdHex)).toString();
-            const createdFormatted = created.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-
-
-            // --- Decode the dynamic (tail) part ---
-            // The tail starts after the 192-byte header.
-            // 1. Name: starts at byte offset 192 and is 64 bytes long. Cut off the rest of extra hex.
-            const nameStart = 192;
-            const nameEnd = nameStart + 64 - 1;
-            const nameDataHex = resultHex.slice(nameStart * 2, nameEnd * 2);
-            const originalName = ethers.toUtf8String("0x" + nameDataHex);
-            const trimmedName = originalName.split('\x00')[0]; // remove excess
-
-            // 2. Value: starts at byte offset 256 until the end of the result. Cut off the rest of extra hex.
-            const valueStart = 256;
-            const valueDataHex = resultHex.slice(valueStart * 2); // from byte 256 to end
-            const value = "0x" + valueDataHex;
-            const decodedResult = ethers.toUtf8String(value);
-            const trimmedValue = decodedResult.split('\x00')[0];
-
-            const document = peaqDidProto.Document.deserializeBinary(hexToU8a(trimmedValue)).toObject() as DidDocument;
-            
-            return {
-                name: trimmedName,
-                value:  trimmedValue,
-                validity: validityFormatted,
-                created: createdFormatted,
-                document: document
-            };
+            const wsp = new WsProvider(wssBaseUrl);
+            var api = await (await ApiPromise.create({ provider: wsp, noInitWarn: true, ...defaultOptions })).isReady;
+            return api;
         }
-        catch (error) {
-            throw new Error(`Failure decoding the returned back DID with response ${error}`);
+        catch(error) {
+            throw new Error(`WSS base url of ${wssBaseUrl}, is not valid with error message: ${error}`)
         }
     }
 }

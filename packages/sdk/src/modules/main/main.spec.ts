@@ -3,6 +3,7 @@ import { ApiPromise } from '@polkadot/api';
 import { Main } from './index';
 import { sleep } from '../../utils';
 import { Main as SDK } from '../main';
+import { ChainType } from '../../types';
 
 const BASE_URL = process.env["BASE_URL"] as string;
 const SUBSTRATE_ADDRESS = process.env["SUBSTRATE_ADDRESS"] as string;
@@ -77,25 +78,14 @@ describe('Main', () => {
       expect(result?.document).toBeDefined();
     });
     it('Explicitly set chain type as substrate and read a well known DID', async () => {
-      const sdk = await SDK.createInstance({chainType: 'substrate', baseUrl: BASE_URL});
+      const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL});
       const result = await sdk.did.read({name: "did-test-123", address: SUBSTRATE_ADDRESS});
       expect(result).toBeDefined();
       expect(result?.name).toBe("did-test-123");
       expect(result?.document).toBeDefined();
     });
-    it('Incorrect Chain Type set', async () => {
-      await expect(SDK.createInstance({chainType: "denarius", baseUrl: BASE_URL}))
-        .rejects.toThrow(new Error("Chain Type not recognized. Please set to either 'evm' or 'substrate' based on what environment you are trying to connect to. No chainType set defaults to substrate."));
-    });
     it('Create instance of a evm sdk', async () => {
-      const sdk = await SDK.createInstance({chainType: 'evm', baseUrl: BASE_URL});
-      expect(sdk).toBeDefined();
-      expect(sdk.did).toBeDefined();
-      expect(sdk.rbac).toBeDefined();
-      expect(sdk.storage).toBeDefined();
-    });
-    it('Create instance of a evm sdk with caps/lower case in chain type', async () => {
-      const sdk = await SDK.createInstance({chainType: 'EvM', baseUrl: BASE_URL});
+      const sdk = await SDK.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL});
       expect(sdk).toBeDefined();
       expect(sdk.did).toBeDefined();
       expect(sdk.rbac).toBeDefined();

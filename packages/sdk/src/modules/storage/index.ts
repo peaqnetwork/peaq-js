@@ -23,7 +23,7 @@ type RemoveItemOptions = {
 type GetItemOptions = {
     itemType: string;
     address?: string;
-    chain?: string;
+    wssBaseUrl?: string;
 }
 
 type UpdateItemOptions = {
@@ -45,7 +45,7 @@ export type RemoveItemResult = {
 }
 
 type GetItemResult = {
-    data: string;
+    [key: string]: string;
 }
 
 
@@ -124,9 +124,9 @@ export class Storage extends Base {
             if (!itemType) throw new ItemTypeError('Item Type name is required');
             if (seed !== '') this._checkSeed(seed);
 
-            // EVM tx logic if chainType is set to EVM
+            // Needs removeItem() to be added to precompile
             if (this._metadata?.chainType?.toUpperCase() == "EVM") {
-                throw new Error("Remove item for EVM currently being developed.")
+                throw new Error("Remove item for EVM currently being developed.");
                 // const evm = new DIDInterfaceStorage();
                 // return await evm.removeItem({itemType: itemType})
             }
@@ -158,15 +158,15 @@ export class Storage extends Base {
 
      public async getItem(options: GetItemOptions): Promise<GetItemResult | null> {
        try {
-        const { itemType, address = '', chain = '' } = options;
+        const { itemType, address = '', wssBaseUrl = '' } = options;
         if (!itemType) throw new ItemTypeError('Item Type name is required');
 
         // EVM tx logic if chainType is set to EVM
         if (this._metadata?.chainType?.toUpperCase() == "EVM") {
             if (!address) throw new Error("Address is required when reading from peaq EVM storage.");
-            if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
+            if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
             const evm = new DIDInterfaceStorage();
-            return await evm.getItem({itemType: itemType, address: address, chain: chain})
+            return await evm.getItem({itemType: itemType, address: address, wssBaseUrl: wssBaseUrl})
         }
 
         const api = this._getApi();
@@ -189,7 +189,7 @@ export class Storage extends Base {
             if (!item || item.isStorageFallback) return null;
             // is toHuman acceptable here? What if a simple string is not passed?
             return {
-                data: `${item}`,
+                [itemType]: `${item.toHuman()}`,
             };
         }
        catch (error) {
