@@ -6,13 +6,9 @@ import { createStorageKeys } from '../../utils';
 import { stringToU8a } from '@polkadot/util';
 import type {
   SDKMetadata,
-  Address,
-  FetchResponseData,
   ResponsePermission,
-  ResponseFetchUserGroups,
-  ResponseRole2User,
-  ResponseRole2Group,
 } from '../../types';
+import { ChainType } from '../../types';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import {
   Entity,
@@ -22,174 +18,45 @@ import {
   User2Group,
 } from '@peaq-network/types/interfaces';
 
-import { RBACInterfaceEVM, EvmTransaction } from './evm_interface_rbac';
+import { RbacClassEvm } from './evm_class_rbac';
 
+// import interfaces
+import { 
+  EvmTransaction,
+  CreateRole,
+  UpdateRole,
+  DisableRole,
+  FetchRole,
+  FetchRoles,
+  FetchRolePermissions,
+  AssignRoleToGroup,
+  UnassignRoleToGroup,
+  AssignRoleToUser,
+  FetchUserRoles,
+  UnassignRoleToUser,
+  CreateGroup,
+  UpdateGroup,
+  DisableGroup,
+  FetchGroup,
+  FetchGroups,
+  CreatePermission,
+  UpdatePermission,
+  DisablePermission,
+  AssignPermissionToRole,
+  UnassignPermissionToRole,
+  AssignUserToGroup,
+  UnassignUserToGroup,
+  FetchUserPermissions,
+  FetchUserGroups,
+  FetchPermission,
+  FetchResponseData,
+  FetchPermissions,
+  FetchResponseRole2Permission,
+  FetchResponseRole2Group,
+  FetchResponseRole2User,
+  ResponseFetchUserGroups
+} from './interfaces';
 
-interface CreateNewRole {
-  roleName: string;
-  roleId?: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface CreateNewGroup {
-  groupName: string;
-  groupId?: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface CreateNewPermission {
-  permissionName: string;
-  permissionId?: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface AssignPermission {
-  permissionId: string;
-  roleId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface AssignRoleToGroup {
-  groupId: string;
-  roleId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface AssignRoleToUser {
-  userId: string;
-  roleId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface AssignUserToGroup {
-  userId: string;
-  groupId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface DisbaleGroup {
-  groupId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface DisbalePermission {
-  permissionId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface DisbaleRole {
-  roleId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface FetchGroup {
-  owner: Address;
-  groupId: string;
-}
-
-interface FetchPermission {
-  owner: Address;
-  permissionId: string;
-}
-
-// TODO update
-interface FetchRole {
-  owner: Address;
-  roleId: string;
-  chain?: string;
-}
-
-interface FetchGroups {
-  owner: Address;
-}
-
-interface FetchPermissions {
-  owner: Address;
-}
-
-interface FetchRoles {
-  owner: Address;
-  chain?: string;
-}
-
-interface FetchRolePermissions {
-  owner: Address;
-  roleId: string;
-}
-
-interface FetchUserGroups {
-  owner: Address;
-  userId: string;
-}
-
-interface FetchUserPermissions {
-  owner: Address;
-  userId: string;
-}
-
-interface FetchUserRoles {
-  owner: Address;
-  userId: string;
-}
-
-interface UnassignPermissionToRole {
-  permissionId: string;
-  roleId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface UnassignRoleToGroup {
-  roleId: string;
-  groupId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface UnassignRoleToUser {
-  roleId: string;
-  userId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface UnassignUserToGroup {
-  userId: string;
-  groupId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface UpdateGroup {
-  name: string;
-  groupId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface UpdatePermission {
-  name: string;
-  permissionId: string;
-  address?: Address;
-  seed?: string;
-}
-
-interface UpdateRole {
-  name: string;
-  roleId: string;
-  address?: Address;
-  seed?: string;
-}
 
 export class RBAC extends Base {
   constructor(
@@ -198,30 +65,38 @@ export class RBAC extends Base {
   ) {
     super();
   }
-  /**
-   * Creates a new role.
-   * @param options - The options for creating the Roles.
-   * @returns A promise that resolves when the role is created.
-   */
 
-  public async createRole(options: CreateNewRole): Promise<{
+  /**
+   * Creates a new role of the given name at the role id. User may manually set role id
+   * but it must be equal to 32 bytes.
+   *
+   * @param CreateRole - Create Role object parameter expecting:
+   *      @param roleName - Name of the role that is created
+   *      @param roleId? - Generate/user created role ID that acts as the key
+   *      @param address? - Address to send the tx; defaults to use address at seed.
+   *      @param seed? - If not set at create_instance, used to get a keypair to send txs.
+   * @returns tx - The transaction object for add item that a user can send manually.
+   */
+  public async createRole(options: CreateRole): Promise<{
+    tx?: EvmTransaction
     roleId: string;
-  } | EvmTransaction> {
+  }> {
     try {
       const { roleName, roleId = '', address = '', seed = '' } = options;
       if (!roleName) throw new Error('Name is required');
       if (roleId && roleId.length !== 32)
         throw new Error('Role Id length should be 32 char only');
       const generatedRoleId = v4().slice(0, 32);
-      const convertedRoleId = stringToU8a(roleId || generatedRoleId);
 
-      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
-          const evm = new RBACInterfaceEVM();
-          return await evm.createRole({roleName: roleName,  roleId: convertedRoleId})
+      if (this._metadata?.chainType == ChainType.EVM) {
+          const evm = new RbacClassEvm();
+          const tx: EvmTransaction = await evm.createRole({roleName: roleName,  roleId: roleId || generatedRoleId})
+          return {tx: tx, roleId: roleId || generatedRoleId}
       }
 
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const convertedRoleId = stringToU8a(roleId || generatedRoleId);
       const addRoleExtrinsics = api.tx?.['peaqRbac']?.['addRole'](
         convertedRoleId,
         roleName
@@ -241,12 +116,18 @@ export class RBAC extends Base {
   }
 
   /**
-   * Creates a new group.
-   * @param options - The options for creating the Group.
-   * @returns A promise that resolves when the group is created.
+   * Creates a new group of the given name at the group id. User may manually set group id
+   * but it must be equal to 32 bytes.
+   *
+   * @param CreateGroup - Create Group object parameter expecting:
+   *      @param groupName - Name of the group that is created
+   *      @param groupId? - Generate/user created group ID that acts as the key.
+   *      @param address? - Address to send the tx; defaults to use address at seed.
+   *      @param seed? - If not set at create_instance, used to get a keypair to send txs.
+   * @returns tx - The transaction object for add item that a user can send manually.
    */
-
-  public async createNewGroup(options: CreateNewGroup): Promise<{
+  public async createGroup(options: CreateGroup): Promise<{
+    tx?: EvmTransaction
     groupId: string;
   }> {
     try {
@@ -255,11 +136,18 @@ export class RBAC extends Base {
       if (groupId && groupId.length !== 32)
         throw new Error('Group Id length should be 32 char only');
       const generatedGroupId = v4().slice(0, 32);
-      const convetedGroupId = stringToU8a(groupId || generatedGroupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        const tx: EvmTransaction = await evm.createGroup({groupName: groupName,  groupId: groupId || generatedGroupId})
+        return {tx: tx, groupId: groupId || generatedGroupId};
+    }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const convertedGroupId = stringToU8a(groupId || generatedGroupId);
       const addGroupExtrinsics = api.tx?.['peaqRbac']?.['addGroup'](
-        convetedGroupId,
+        convertedGroupId,
         groupName
       );
       const nonce = await this._getNonce(address || keyPair.address);
@@ -277,12 +165,18 @@ export class RBAC extends Base {
   }
 
   /**
-   * Creates a new permission.
-   * @param options - The options for creating the permission.
-   * @returns A promise that resolves when the permission is created.
+   * Creates a new permission of the given name at the permission id. User may manually set permission id
+   * but it must be equal to 32 bytes.
+   *
+   * @param CreatePermission - Create permission object parameter expecting:
+   *      @param permissionName - Name of the permission that is created
+   *      @param permissionId? - Generate/user created permission ID that acts as the key.
+   *      @param address? - Address to send the tx; defaults to use address at seed.
+   *      @param seed? - If not set at create_instance, used to get a keypair to send txs.
+   * @returns tx - The transaction object for add item that a user can send manually.
    */
-
-  public async createPermission(options: CreateNewPermission): Promise<{
+  public async createPermission(options: CreatePermission): Promise<{
+    tx?: EvmTransaction
     permissionId: string;
   }> {
     try {
@@ -296,11 +190,16 @@ export class RBAC extends Base {
       if (permissionId && permissionId.length !== 32)
         throw new Error('Permission Id length should be 32 char only');
       const generatedPermissionId = v4().slice(0, 32);
-      const convertedPermissionId = stringToU8a(
-        permissionId || generatedPermissionId
-      );
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        const tx: EvmTransaction = await evm.createPermission({permissionName: permissionName,  permissionId: permissionId || generatedPermissionId});
+        return {tx: tx, permissionId: permissionId || generatedPermissionId}
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
+      const convertedPermissionId = stringToU8a(permissionId || generatedPermissionId);
       const addPermissionExtrinsics = api.tx?.['peaqRbac']?.['addPermission'](
         convertedPermissionId,
         permissionName
@@ -319,19 +218,25 @@ export class RBAC extends Base {
     }
   }
 
-  /**
+  /** UPDATE
+   * 
    * Assign permission to role.
    * @param options - The options for assigning permission to role.
    * @returns A promise that resolves when the permission is assign to role.
    */
-
   public async assignPermissionToRole(
-    options: AssignPermission
-  ): Promise<{ message: string }> {
+    options: AssignPermissionToRole
+  ): Promise<{ message: string } | EvmTransaction> {
     try {
       const { address = '', seed = '', permissionId, roleId } = options;
       this._validateInput(permissionId);
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.assignPermissionToRole({permissionId: permissionId, roleId: roleId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignPermissionToRoleExtrinsics = api.tx?.['peaqRbac']?.[
@@ -353,18 +258,25 @@ export class RBAC extends Base {
     }
   }
 
-  /**
+  /** UPDATE
+   * 
    * Assign role to group.
    * @param options - The options for assigning role to group.
    * @returns A promise that resolves when the role is assign to group.
    */
   public async assignRoleToGroup(
     options: AssignRoleToGroup
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string} | EvmTransaction> {
     try {
-      const { address = '', seed = '', groupId, roleId } = options;
+      const { groupId, roleId, address = '', seed = ''} = options;
       this._validateInput(groupId);
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.assignRoleToGroup({groupId: groupId, roleId: roleId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignRoleToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -385,6 +297,8 @@ export class RBAC extends Base {
   }
 
   /**
+   * UPDATE
+   * 
    * Assign role to user.
    * @param options - The options for assigning role to user.
    * @returns A promise that resolves when the role is assign to user.
@@ -392,11 +306,17 @@ export class RBAC extends Base {
 
   public async assignRoleToUser(
     options: AssignRoleToUser
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string } | EvmTransaction> {
     try {
-      const { address = '', seed = '', userId, roleId } = options;
+      const { userId, roleId, address = '', seed = '', } = options;
       this._validateInput(userId);
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.assignRoleToUser({userId: userId, roleId: roleId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignRoleToUserExtrinsics = api.tx?.['peaqRbac']?.[
@@ -416,7 +336,9 @@ export class RBAC extends Base {
     }
   }
 
-  /**
+  /** UPDATE
+   * 
+   * 
    * Assign user to group.
    * @param options - The options for assigning user to group.
    * @returns A promise that resolves when the user is assign to group.
@@ -424,11 +346,17 @@ export class RBAC extends Base {
 
   public async assignUserToGroup(
     options: AssignUserToGroup
-  ): Promise<{ message: string }> {
+  ): Promise<{ message: string } | EvmTransaction> {
     try {
-      const { address = '', seed = '', userId, groupId } = options;
+      const { userId, groupId, address = '', seed = '' } = options;
       this._validateInput(userId);
       this._validateInput(groupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.assignUserToGroup({userId: userId, groupId: groupId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const assignUserToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -455,11 +383,17 @@ export class RBAC extends Base {
    */
 
   public async disableGroup(
-    options: DisbaleGroup
-  ): Promise<{ message: string }> {
+    options: DisableGroup
+  ): Promise<{ message: string } | EvmTransaction> {
     try {
       const { groupId, address = '', seed = '' } = options;
       this._validateInput(groupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.disableGroup({groupId: groupId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const disableGroupExtrinsics = api.tx?.['peaqRbac']?.['disableGroup'](
@@ -486,11 +420,17 @@ export class RBAC extends Base {
    */
 
   public async disablePermission(
-    options: DisbalePermission
-  ): Promise<{ message: string }> {
+    options: DisablePermission
+  ): Promise<{ message: string } | EvmTransaction> {
     try {
       const { permissionId, address = '', seed = '' } = options;
       this._validateInput(permissionId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.disablePermission({permissionId: permissionId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const disableGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -516,10 +456,16 @@ export class RBAC extends Base {
    * @returns A promise that resolves when role is disable.
    */
 
-  public async disableRole(options: DisbaleRole): Promise<{ message: string }> {
+  public async disableRole(options: DisableRole): Promise<{ message: string } | EvmTransaction> {
     try {
       const { roleId, address = '', seed = '' } = options;
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.disableRole({roleId: roleId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const disableGroupExtrinsics = api.tx?.['peaqRbac']?.['disableRole'](
@@ -540,20 +486,22 @@ export class RBAC extends Base {
   }
 
   /**
-   * Fetch all roles.
-   * @param options - The ownerAddress is public address of user or owner who created a roles.
-   * @returns A promise that resolves when the role is fetched.
+   * Fetches all of the roles this user address has.
+   *
+   * @param FetchRoles - The parameters this function is expecting:
+   *      @param owner - Address that owns all of the roles.
+   *      @param wssBaseUrl? - Endpoint url that connects to the blockchain to read from.
+   * @returns FetchResponseData[] - Array of object with the responses.
    */
-
   public async fetchRoles(options: FetchRoles): Promise<FetchResponseData[]> {
     try {
-      const { owner, chain = '' } = options;
+      const { owner, wssBaseUrl = '' } = options;
       if (!owner) throw new Error('Invalid owner address');
 
-      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
-        if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
-        const evm = new RBACInterfaceEVM();
-        return await evm.fetchRoles({owner: owner, chain: chain});
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchRoles({owner: owner, wssBaseUrl: wssBaseUrl});
     }
 
       const api = this._getApi();
@@ -576,15 +524,27 @@ export class RBAC extends Base {
   }
 
   /**
-   * Fetch all group.
-   * @param option - The option for fetch group.
-   * @returns A promise that resolves when the group is fetched.
+   * Fetches the Group for the owner at the groupId.
+   *
+   * @param FetchGroup - The parameters this function is expecting:
+   *      @param owner - Address that owns this particular group.
+   *      @param groupId? - Specific group identifier that will be fetched.
+   *      @param wssBaseUrl? - Endpoint url that connects to the blockchain to read from.
+   * @returns FetchResponseData - Object with the response.
    */
-
   public async fetchGroup(option: FetchGroup): Promise<FetchResponseData> {
     try {
-      const { groupId, owner } = option;
+      const { groupId, owner, wssBaseUrl = '' } = option;
       this._validateInput(groupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!owner) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchGroup({owner: owner,  groupId: groupId, wssBaseUrl: wssBaseUrl});
+    }
+
+
       const { hashed_key } = createStorageKeys([
         {
           value: owner,
@@ -632,8 +592,15 @@ export class RBAC extends Base {
     option: FetchGroup
   ): Promise<FetchResponseData[]> {
     try {
-      const { groupId, owner } = option;
+      const { groupId, owner, wssBaseUrl='' } = option;
       this._validateInput(groupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchGroupPermissions({owner: owner, groupId: groupId, wssBaseUrl: wssBaseUrl});
+      }
+
       const api = await this._getApi();
       const { hashed_key: role2GroupStoreKey } = createStorageKeys([
         {
@@ -653,7 +620,7 @@ export class RBAC extends Base {
       const role2GroupData = (await api.query?.['peaqRbac']?.[
         'role2GroupStore'
       ](role2GroupStoreKey)) as unknown as Role2Group[];
-      const responseRole2UserGroup: ResponseRole2Group[] = role2GroupData?.map(
+      const responseRole2UserGroup: FetchResponseRole2Group[] = role2GroupData?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
       if (responseRole2UserGroup.length > 0) {
@@ -689,10 +656,17 @@ export class RBAC extends Base {
 
   public async fetchGroupRoles(
     option: FetchGroup
-  ): Promise<ResponseRole2Group[]> {
+  ): Promise<FetchResponseRole2Group[]> {
     try {
-      const { groupId, owner } = option;
+      const { owner, groupId, wssBaseUrl = '' } = option;
       this._validateInput(groupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchGroupRoles({owner: owner, groupId: groupId, wssBaseUrl: wssBaseUrl});
+    }
+
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -711,7 +685,7 @@ export class RBAC extends Base {
       const role2GroupData = (await api.query?.['peaqRbac']?.[
         'role2GroupStore'
       ](hashed_key)) as unknown as Role2Group[];
-      const responseRole2Group: ResponseRole2Group[] = role2GroupData?.map(
+      const responseRole2Group: FetchResponseRole2Group[] = role2GroupData?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
       return responseRole2Group;
@@ -721,15 +695,23 @@ export class RBAC extends Base {
   }
 
   /**
-   * Fetch all groups.
-   * @param options - The option for fetch groups.
-   * @returns A promise that resolves when the groups is fetched.
+   * Fetches all of the groups this user address has
+   *
+   * @param FetchGroups - The parameters this function is expecting:
+   *      @param owner - Address that owns all of the groups.
+   *      @param wssBaseUrl? - Endpoint url that connects to the blockchain to read from.
+   * @returns FetchResponseData[] - Array of object with the responses.
    */
-
   public async fetchGroups(options: FetchGroups): Promise<FetchResponseData[]> {
     try {
-      const { owner } = options;
+      const { owner, wssBaseUrl = '' } = options;
       if (!owner) throw new Error('Invalid owner address');
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchGroups({owner: owner, wssBaseUrl: wssBaseUrl});
+    }
       const api = this._getApi();
       const groups = (await api.query?.['peaqRbac']?.['groupStore'](
         owner
@@ -747,17 +729,29 @@ export class RBAC extends Base {
   }
 
   /**
-   * Fetch permission.
-   * @param option - The option for fetch permission.
-   * @returns A promise that resolves when the permission is fetched.
+   * Fetches the permission for the owner at the permissionId.
+   *
+   * @param FetchPermission - The parameters this function is expecting:
+   *      @param owner - Address that owns this particular permission.
+   *      @param permissionId? - Specific permission identifier that will be fetched.
+   *      @param wssBaseUrl? - Endpoint url that connects to the blockchain to read from.
+   * @returns FetchResponseData - Object with the response.
    */
-
   public async fetchPermission(
     option: FetchPermission
   ): Promise<FetchResponseData> {
     try {
-      const { owner, permissionId } = option;
+      const { owner, permissionId, wssBaseUrl = ''  } = option;
       this._validateInput(permissionId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!owner) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchPermission({owner: owner,  permissionId: permissionId, wssBaseUrl: wssBaseUrl});
+    }
+
+
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -790,15 +784,24 @@ export class RBAC extends Base {
   }
 
   /**
-   * Fetch all permissions.
-   * @param options - The option for fetch permissions.
-   * @returns A promise that resolves when the permissions is fetched.
+   * Fetches all of the permissions this user address has
+   *
+   * @param FetchPermissions- The parameters this function is expecting:
+   *      @param owner - Address that owns all of the permissions.
+   *      @param wssBaseUrl? - Endpoint url that connects to the blockchain to read from.
+   * @returns FetchResponseData[] - Array of object with the responses.
    */
-
   public async fetchPermissions(options: FetchPermissions): Promise<FetchResponseData[]> {
     try {
-      const { owner } = options;
+      const { owner, wssBaseUrl = '' } = options;
       if (!owner) throw new Error('Invalid owner address');
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchPermissions({owner: owner, wssBaseUrl: wssBaseUrl});
+    }
+
       const api = this._getApi();
       const permissions = (await api.query?.['peaqRbac']?.['permissionStore'](
         owner
@@ -815,22 +818,25 @@ export class RBAC extends Base {
     }
   }
 
-  /**
-   * Fetch role.
-   * @param option - The option for fetch role.
-   * @returns A promise that resolves when the role is fetched.
-   */
-
+    /**
+     * Fetches the Role for the owner at the roleId.
+     *
+     * @param FetchRole - The parameters this function is expecting:
+     *      @param owner - Address that owns this particular role.
+     *      @param roleId? - Specific role identifier that will be fetched.
+     *      @param wssBaseUrl? - Endpoint url that connects to the blockchain to read from.
+     * @returns FetchResponseData - Object with the response.
+     */
   public async fetchRole(option: FetchRole): Promise<FetchResponseData | undefined> {
     try {
-      const { owner, roleId, chain = ''  } = option;
+      const { owner, roleId, wssBaseUrl = ''  } = option;
       this._validateInput(roleId);
 
-      if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+      if (this._metadata?.chainType == ChainType.EVM) {
         if (!owner) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
-        if (!chain) throw new Error("Need to set a chain for provider to know where to read from. Please set the variable 'chain' to 'peaq' or 'agung'.");
-        const evm = new RBACInterfaceEVM();
-        return await evm.fetchRole({owner: owner,  roleId: roleId, chain: chain});
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchRole({owner: owner,  roleId: roleId, wssBaseUrl: wssBaseUrl});
     }
 
 
@@ -876,10 +882,17 @@ export class RBAC extends Base {
 
   public async fetchRolePermissions(
     option: FetchRolePermissions
-  ): Promise<ResponsePermission[]> {
+  ): Promise<FetchResponseRole2Permission[]> {
     try {
-      const { owner, roleId } = option;
+      const { owner, roleId, wssBaseUrl = '' } = option;
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchRolePermissions({owner: owner, roleId: roleId, wssBaseUrl: wssBaseUrl});
+    }
+
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -921,8 +934,15 @@ export class RBAC extends Base {
     option: FetchUserGroups
   ): Promise<ResponseFetchUserGroups[]> {
     try {
-      const { owner, userId } = option;
+      const { owner, userId, wssBaseUrl = '' } = option;
       this._validateInput(userId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchUserGroups({owner: owner, userId: userId, wssBaseUrl: wssBaseUrl});
+      }
+
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -963,8 +983,15 @@ export class RBAC extends Base {
     option: FetchUserPermissions
   ): Promise<FetchResponseData[]> {
     try {
-      const { owner, userId } = option;
+      const { owner, userId, wssBaseUrl='' } = option;
       this._validateInput(userId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchUserPermissions({owner: owner, userId: userId, wssBaseUrl: wssBaseUrl});
+      }
+
       const api = await this._getApi();
       const { hashed_key: Role2User_Key } = createStorageKeys([
         {
@@ -1003,7 +1030,7 @@ export class RBAC extends Base {
       const role2userData = (await api.query?.['peaqRbac']?.['role2UserStore'](
         Role2User_Key
       )) as unknown as Role2User[];
-      const responseRole2User: ResponseRole2User[] = role2userData?.map(
+      const responseRole2User: FetchResponseRole2User[] = role2userData?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
       for (const resRole2User1 of responseRole2User) {
@@ -1068,10 +1095,17 @@ export class RBAC extends Base {
 
   public async fetchUserRoles(
     option: FetchUserRoles
-  ): Promise<ResponseRole2User[]> {
+  ): Promise<FetchResponseRole2User[]> {
     try {
-      const { owner, userId } = option;
+      const { owner, userId, wssBaseUrl = '' } = option;
       this._validateInput(userId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        const evm = new RbacClassEvm();
+        return await evm.fetchUserRoles({owner: owner, userId: userId, wssBaseUrl: wssBaseUrl});
+      }
+
       const api = await this._getApi();
       const { hashed_key } = createStorageKeys([
         {
@@ -1090,7 +1124,7 @@ export class RBAC extends Base {
       const role2userData = (await api.query?.['peaqRbac']?.['role2UserStore'](
         hashed_key
       )) as unknown as Role2User[];
-      const responseRole2User: ResponseRole2User[] = role2userData?.map(
+      const responseRole2User: FetchResponseRole2User[] = role2userData?.map(
         (item) => JSON.parse(JSON.stringify(item.toHuman()))
       );
       if (responseRole2User.length === 0) {
@@ -1113,11 +1147,17 @@ export class RBAC extends Base {
     option: UnassignPermissionToRole
   ): Promise<{
     message: string;
-  }> {
+  } | EvmTransaction> {
     try {
       const { permissionId, roleId, address = '', seed = '' } = option;
       this._validateInput(permissionId);
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.unassignPermissionToRole({permissionId: permissionId, roleId: roleId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignPermissionToRoleExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1139,19 +1179,26 @@ export class RBAC extends Base {
     }
   }
 
-  /**
+  /** UPDATE
+   * 
+   * 
    * Unassign role to group.
    * @param option - The option for unassign role to group.
    * @returns A promise that resolves when the role is unassign to group.
    */
-
   public async unassignRoleToGroup(option: UnassignRoleToGroup): Promise<{
     message: string;
-  }> {
+  } | EvmTransaction> {
     try {
       const { roleId, groupId, address = '', seed = '' } = option;
       this._validateInput(roleId);
       this._validateInput(groupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.unassignRoleToGroup({roleId: roleId, groupId: groupId})
+      }
+      
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignRoleToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1179,11 +1226,17 @@ export class RBAC extends Base {
 
   public async unassignRoleToUser(option: UnassignRoleToUser): Promise<{
     message: string;
-  }> {
+  } | EvmTransaction> {
     try {
       const { userId, roleId, address = '', seed = '' } = option;
       this._validateInput(userId);
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.unassignRoleToUser({roleId: roleId, userId: userId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignRoleToUserExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1204,6 +1257,8 @@ export class RBAC extends Base {
   }
 
   /**
+   * UPDATE
+   * 
    * Unassign user to group.
    * @param option - The option for unassign user to group.
    * @returns A promise that resolves when the user is unassign to group.
@@ -1211,11 +1266,17 @@ export class RBAC extends Base {
 
   public async unassignUserToGroup(option: UnassignUserToGroup): Promise<{
     message: string;
-  }> {
+  } | EvmTransaction> {
     try {
       const { userId, groupId, address = '', seed = '' } = option;
       this._validateInput(userId);
       this._validateInput(groupId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.unassignUserToGroup({userId: userId, groupId: groupId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignUserToGroupExtrinsics = api.tx?.['peaqRbac']?.[
@@ -1243,16 +1304,22 @@ export class RBAC extends Base {
 
   public async updateGroup(option: UpdateGroup): Promise<{
     message: string;
-  }> {
+  } | EvmTransaction> {
     try {
-      const { name, groupId, address = '', seed = '' } = option;
-      if (!name) throw new Error('Name is required');
+      const { groupName, groupId, address = '', seed = '' } = option;
+      if (!groupName) throw new Error('Name is required');
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.updateGroup({groupName: groupName, groupId: groupId})
+      }
+
       this._validateInput(groupId);
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const updateGroupExtrinsics = api.tx?.['peaqRbac']?.['updateGroup'](
         stringToU8a(groupId),
-        name
+        groupName
       );
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
@@ -1276,16 +1343,22 @@ export class RBAC extends Base {
 
   public async updatePermission(option: UpdatePermission): Promise<{
     message: string;
-  }> {
+  } | EvmTransaction> {
     try {
-      const { name, permissionId, address = '', seed = '' } = option;
-      if (!name) throw new Error('Name is required');
+      const { permissionName, permissionId, address = '', seed = '' } = option;
+      if (!permissionName) throw new Error('Name is required');
       this._validateInput(permissionId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.updatePermission({permissionName: permissionName, permissionId: permissionId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const updatePermissionExtrinsics = api.tx?.['peaqRbac']?.[
         'updatePermission'
-      ](stringToU8a(permissionId), name);
+      ](stringToU8a(permissionId), permissionName);
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
         nonce,
@@ -1308,16 +1381,22 @@ export class RBAC extends Base {
 
   public async updateRole(option: UpdateRole): Promise<{
     message: string;
-  }> {
+  } | EvmTransaction> {
     try {
-      const { name, roleId, address = '', seed = '' } = option;
-      if (!name) throw new Error('Name is required');
+      const { roleName, roleId, address = '', seed = '' } = option;
+      if (!roleName) throw new Error('Name is required');
       this._validateInput(roleId);
+
+      if (this._metadata?.chainType == ChainType.EVM) {
+        const evm = new RbacClassEvm();
+        return await evm.updateRole({roleName: roleName, roleId: roleId})
+      }
+
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const updateRoleExtrinsics = api.tx?.['peaqRbac']?.['updateRole'](
         stringToU8a(roleId),
-        name
+        roleName
       );
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({

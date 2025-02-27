@@ -6,6 +6,7 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 import type { SubmittableExtrinsic } from '@polkadot/api-base/types';
 import type { Event, Phase } from "@polkadot/types/interfaces";
 import { Codec } from '@polkadot/types/types'
+import { EvmTransaction } from '../modules/did/evm_interface_did';
 
 export enum ChainType {
   EVM = "evm",
@@ -26,7 +27,7 @@ export interface SDKMetadata {
 }
 
 export interface SendEvmTx {
-  tx: Object;
+  tx: Object | undefined;
   baseUrl: string;
   seed: string;
 }
@@ -86,30 +87,10 @@ export interface SignTransction{
   statusCallback?: (result: ISubmittableResult) => void;
 }
 
-export interface FetchResponseData{
-  id: string;
-  name: string;
-  enabled: boolean;
-}
 
 export interface ResponsePermission{
   permission: string,
   role: string
-}
-
-export interface ResponseFetchUserGroups{
-  user: string,
-  group: string
-}
-
-export interface ResponseRole2User{
-  role: string,
-  user: string
-}
-
-export interface ResponseRole2Group{
-  role: string,
-  group: string
 }
 
 export interface PeaqEventData{

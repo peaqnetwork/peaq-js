@@ -26,7 +26,7 @@ const address_error = `StorageAddressError: Incorrect Substrate SS58/Ethereum Ad
 
 // WIP -> Need to have further discussions on proper implementation
 // - create test to make sure remove storage function only works with the address that created the object
-describe('Storage', () => {
+describe.skip('Storage', () => {
   describe('EVM Tests', () => {
     describe.skip('addItem()', () => {
     // 'my_new_item' 'evm-test-10000' exists

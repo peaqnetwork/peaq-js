@@ -1,7 +1,7 @@
 import { ApiPromise } from '@polkadot/api';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
-import { CreateStorageKeysEnum, Address } from '../../types';
+import { ChainType, CreateStorageKeysEnum, Address } from '../../types';
 import { createStorageKeys } from '../../utils';
 import { stringToU8a, u8aToHex, hexToString } from '@polkadot/util';
 import { StorageError, ItemTypeError, ItemError, StorageAddressError, StorageSeedError} from '../../utils/errors';
@@ -82,7 +82,7 @@ export class Storage extends Base {
         if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
 
         // EVM tx logic if chainType is set to EVM
-        if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        if (this._metadata?.chainType == ChainType.EVM) {
             const evm = new DIDInterfaceStorage();
             return await evm.addItem({itemType: itemType,  item: item})
         }
@@ -125,7 +125,7 @@ export class Storage extends Base {
             if (seed !== '') this._checkSeed(seed);
 
             // Needs removeItem() to be added to precompile
-            if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+            if (this._metadata?.chainType == ChainType.EVM) {
                 throw new Error("Remove item for EVM currently being developed.");
                 // const evm = new DIDInterfaceStorage();
                 // return await evm.removeItem({itemType: itemType})
@@ -162,7 +162,7 @@ export class Storage extends Base {
         if (!itemType) throw new ItemTypeError('Item Type name is required');
 
         // EVM tx logic if chainType is set to EVM
-        if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+        if (this._metadata?.chainType == ChainType.EVM) {
             if (!address) throw new Error("Address is required when reading from peaq EVM storage.");
             if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
             const evm = new DIDInterfaceStorage();
@@ -212,7 +212,7 @@ export class Storage extends Base {
             if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
     
              // EVM tx logic if chainType is set to EVM
-            if (this._metadata?.chainType?.toUpperCase() == "EVM") {
+            if (this._metadata?.chainType == ChainType.EVM) {
                 const evm = new DIDInterfaceStorage();
                 return await evm.updateItem({itemType: itemType,  item: item})
             }

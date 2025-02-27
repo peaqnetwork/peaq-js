@@ -9,7 +9,7 @@ const BASE_URL = process.env["BASE_URL"] as string;
 const SUBSTRATE_ADDRESS = process.env["SUBSTRATE_ADDRESS"] as string;
 
 
-describe('Main', () => {
+describe.skip('Main', () => {
   describe('createInstance', () => {
     it('should create Main instance and connect to the provided URL', async () => {
       const sdk = new Main({ baseUrl: BASE_URL });

@@ -179,6 +179,9 @@ export class Main extends Base {
    * @returns The receipt of the transaction.
    */
   public static async sendEvmTx(options: SendEvmTx) {
+    if (!options.tx) {
+      throw new Error("Transaction is required for EVM execution.");
+    }
     try {
       let provider;
       if (options.baseUrl.startsWith('wss')) {
