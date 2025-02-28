@@ -1,14 +1,18 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
-import { Storage, AddItemResult, RemoveItemResult, UpdateItemResult} from './index';
+import { Storage } from './index';
 import { u8aToHex, stringToU8a, hexToString } from '@polkadot/util';
 import { unsubscribeRuntimeVersion } from '../../utils';
 import { StorageError, ItemTypeError, ItemError, StorageAddressError} from '../../utils/errors';
 import { Main as SDK } from '../main';
 import { ChainType } from '../../types';
 
-
+import { 
+  AddItemResult,
+  RemoveItemResult,
+  UpdateItemResult
+} from './interface'
 
 const BASE_URL_HTTPS = process.env['BASE_URL_HTTPS'] as string;
 const BASE_URL_WSS = process.env['BASE_URL_WSS'] as string;

@@ -3,12 +3,18 @@ import { Keyring } from '@polkadot/keyring';
 import { KeyringPair } from '@polkadot/keyring/types';
 import { hexToU8a,  } from '@polkadot/util';
 import { cryptoWaitReady } from '@polkadot/util-crypto';
-import type { DidDocument, ReadDidResponse } from '../../types';
-import { CustomDocumentFields, CreateDidResult, RemoveDidResult } from './index';
+import type { DidDocument } from '../../types';
 import { CreateDidError, ReadDidError, UpdateDidError, RemoveDidError} from '../../utils/errors';
 import { Main as SDK } from '../main';
-import { EvmTransaction } from './evm_interface_did';
 import { ChainType } from '../../types/common';
+
+import {
+  ReadDidResponse,
+  CustomDocumentFields,
+  CreateDidResult,
+  RemoveDidResult,
+  EvmTransaction
+ } from './interface'
 
 
 import { ethers } from 'ethers';

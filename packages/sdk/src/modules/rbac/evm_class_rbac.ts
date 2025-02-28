@@ -1,6 +1,6 @@
 
 import { ethers } from 'ethers';
-import { Address, ReadDidResponse, CreateStorageKeysEnum } from '../../types';
+import { Address, CreateStorageKeysEnum } from '../../types';
 import { defaultOptions } from '@peaq-network/types';
 
 import { evmToAddress } from '@polkadot/util-crypto';

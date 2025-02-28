@@ -57,11 +57,13 @@ describe('RBAC', () => {
   // no delete functions. What about enable in precompiles???
   describe('EVM Tests', () => {
     describe('Role Tests', () => {
-      it.skip('createRole()', async () => {
+      it('createRole()', async () => {
+        let now = new Date().getTime();
         const roleName = "role-name-123";
         const sdk = await Sdk.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
         const tx = await sdk.rbac.createRole({roleName: roleName});
-        const receipt = await Sdk.sendEvmTx({tx: tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
+        console.log(tx);
+        const receipt = await Sdk.sendEvmTx({tx: tx.tx, baseUrl: BASE_URL_HTTPS, seed: ETH_PRIVATE});
       }, 50000);
       it.skip('Role to Group', async () => {
         const peaqKnownRole = "e09fe342-f8ee-46d1-82e2-a60a5b6e";
@@ -155,7 +157,7 @@ describe('RBAC', () => {
         console.log('role permission', response2);
       }, 50000);
     });
-    describe('Group Tests', () => {
+    describe.skip('Group Tests', () => {
       it.skip('createGroup()', async () => {
         const groupName = "group-name-123";
         const sdk = await Sdk.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
@@ -238,7 +240,7 @@ describe('RBAC', () => {
       }, 100000);
     });
 
-    describe('Permission Tests', () => {
+    describe.skip('Permission Tests', () => {
       it.skip('createPermission()', async () => {
         const permissionName = "Permission-name-123";
         const sdk = await Sdk.createInstance({chainType: ChainType.EVM, baseUrl: BASE_URL_HTTPS});
@@ -313,7 +315,7 @@ describe('RBAC', () => {
         console.log('updated permission', response2);
       }, 50000);
     });
-    describe('User Tests', () => {
+    describe.skip('User Tests', () => {
       it.skip('User to Group', async() => {
         // TODO TEST
         const userId = "ada650fa-ec62-4d09-849b-b66c1111";

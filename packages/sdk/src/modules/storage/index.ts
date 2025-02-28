@@ -7,53 +7,19 @@ import { stringToU8a, u8aToHex, hexToString } from '@polkadot/util';
 import { StorageError, ItemTypeError, ItemError, StorageAddressError, StorageSeedError} from '../../utils/errors';
 import type { SDKMetadata} from '../../types';
 import { Base } from '../base';
-import { DIDInterfaceStorage, EvmTransaction } from './evm_interface_storage';
+import { StorageClassEvm } from './evm_class_storage';
 
-type AddItemOptions = {
-    itemType: string;
-    item: string;
-    seed?: string;
-} 
-
-type RemoveItemOptions = {
-    itemType: string;
-    seed?: string;
-}
-
-type GetItemOptions = {
-    itemType: string;
-    address?: string;
-    wssBaseUrl?: string;
-}
-
-type UpdateItemOptions = {
-    itemType: string;
-    item: string;
-    seed?: string;
-}
-
-export type AddItemResult = {
-    message: string;
-    block_hash: CodecHash;
-    unsubscribe: () => void;
-}
-
-export type RemoveItemResult = {
-    message: string;
-    block_hash: CodecHash;
-    unsubscribe: () => void;
-}
-
-type GetItemResult = {
-    [key: string]: string;
-}
-
-
-export type UpdateItemResult = {
-    message: string;
-    block_hash: CodecHash;
-    unsubscribe: () => void;
-}
+import {
+    AddItemOptions,
+    RemoveItemOptions,
+    GetItemOptions,
+    UpdateItemOptions,
+    AddItemResult,
+    RemoveItemResult,
+    GetItemResult,
+    UpdateItemResult,
+    EvmTransaction
+} from './interface'
 
 export class Storage extends Base {
     constructor(
@@ -83,7 +49,7 @@ export class Storage extends Base {
 
         // EVM tx logic if chainType is set to EVM
         if (this._metadata?.chainType == ChainType.EVM) {
-            const evm = new DIDInterfaceStorage();
+            const evm = new StorageClassEvm();
             return await evm.addItem({itemType: itemType,  item: item})
         }
         
@@ -127,7 +93,7 @@ export class Storage extends Base {
             // Needs removeItem() to be added to precompile
             if (this._metadata?.chainType == ChainType.EVM) {
                 throw new Error("Remove item for EVM currently being developed.");
-                // const evm = new DIDInterfaceStorage();
+                // const evm = new StorageClassEvm();
                 // return await evm.removeItem({itemType: itemType})
             }
 
@@ -165,7 +131,7 @@ export class Storage extends Base {
         if (this._metadata?.chainType == ChainType.EVM) {
             if (!address) throw new Error("Address is required when reading from peaq EVM storage.");
             if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
-            const evm = new DIDInterfaceStorage();
+            const evm = new StorageClassEvm();
             return await evm.getItem({itemType: itemType, address: address, wssBaseUrl: wssBaseUrl})
         }
 
@@ -213,7 +179,7 @@ export class Storage extends Base {
     
              // EVM tx logic if chainType is set to EVM
             if (this._metadata?.chainType == ChainType.EVM) {
-                const evm = new DIDInterfaceStorage();
+                const evm = new StorageClassEvm();
                 return await evm.updateItem({itemType: itemType,  item: item})
             }
 

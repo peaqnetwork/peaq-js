@@ -5,6 +5,15 @@ import { createStorageKeys } from '../../utils';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { defaultOptions } from '@peaq-network/types';
 
+import {
+    AddItemOptions,
+    RemoveItemOptions,
+    GetItemOptions,
+    GetItemResult,
+    UpdateItemOptions,
+    EvmTransaction
+} from './interface'
+
 enum FunctionSignatures {
     ADD_ITEM = "addItem(bytes,bytes)",
     GET_ITEM = "getItem(address,bytes)",
@@ -16,39 +25,39 @@ enum PrecompileAddresses {
     STORAGE = "0x0000000000000000000000000000000000000801"
 }
 
-interface AddItemOptions {
-    itemType: string;
-    item: string;
-}
+// interface AddItemOptions {
+//     itemType: string;
+//     item: string;
+// }
 
-type RemoveItemOptions = {
-    itemType: string;
-}
+// type RemoveItemOptions = {
+//     itemType: string;
+// }
 
-type GetItemOptions = {
-    itemType: string;
-    address: string;
-    wssBaseUrl: string;
-}
+// type GetItemOptions = {
+//     itemType: string;
+//     address: string;
+//     wssBaseUrl: string;
+// }
 
-type GetItemResult = {
-    [key: string]: string;
-}
+// type GetItemResult = {
+//     [key: string]: string;
+// }
 
-type UpdateItemOptions = {
-    itemType: string;
-    item: string;
-}
+// type UpdateItemOptions = {
+//     itemType: string;
+//     item: string;
+// }
 
-export interface EvmTransaction {
-    to: string;
-    data: string;
-}
+// export interface EvmTransaction {
+//     to: string;
+//     data: string;
+// }
 
 /**
  * Class that builds peaq's Storage EVM transactions.
  */
-export class DIDInterfaceStorage {
+export class StorageClassEvm {
     private abiCoder = new ethers.AbiCoder();
     
     constructor() {
@@ -154,14 +163,22 @@ export class DIDInterfaceStorage {
     /**
      * Used to validate a proper H160 address is being passed.
      */
-    private _checkEvmAddress(address: Address){
+    private _checkEvmAddress(address: Address | undefined){
+
         if (!ethers.isAddress(address)) {
             throw new Error(`${address} is not a valid EVM address`);
         }
     }
 
-    private async _storageDecoder(itemType: string, address: Address, wssBaseUrl: string): Promise <GetItemResult> {
+    private async _storageDecoder(itemType: string, address: Address | undefined, wssBaseUrl: string | undefined): Promise <GetItemResult> {
         // Convert EVM to Substrate address
+        if (address == undefined){
+            throw new Error("Address cannot be undefined. Please set to a valid address.");
+        }
+        if (wssBaseUrl == undefined) {
+            throw new Error("wssBaseUrl cannot be undefined. Please set a valid WSS url.");
+        }
+
         const substrateAddress = evmToAddress(address);
 
         const { hashed_key } = createStorageKeys([

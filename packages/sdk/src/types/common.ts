@@ -5,8 +5,7 @@ import { BN } from '@polkadot/util';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { SubmittableExtrinsic } from '@polkadot/api-base/types';
 import type { Event, Phase } from "@polkadot/types/interfaces";
-import { Codec } from '@polkadot/types/types'
-import { EvmTransaction } from '../modules/did/evm_interface_did';
+import { Codec } from '@polkadot/types/types';
 
 export enum ChainType {
   EVM = "evm",
@@ -63,14 +62,6 @@ export interface DidDocument {
     data: string;
   }[];
   authentications: string[];
-}
-
-export interface ReadDidResponse {
-  name: string;
-  value: string;
-  validity: string;
-  created: string;
-  document: DidDocument;
 }
 
 export interface Attribute extends Struct {

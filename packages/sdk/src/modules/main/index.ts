@@ -6,7 +6,8 @@ import { unsubscribeRuntimeVersion } from '../../utils';
 import { ChainType, type CreateInstanceOptions, type SDKMetadata, type SendEvmTx } from '../../types';
 
 import { Base } from '../base';
-import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
+import { Did } from '../did';
+import { GenerateDidOptions, GenerateDidResult } from '../did/interface';
 import { RBAC } from '../rbac';
 import { Storage } from '../storage';
 import { Ptp, PtpOptions, type SyncResult } from '../ptp';

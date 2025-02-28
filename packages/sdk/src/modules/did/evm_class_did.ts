@@ -1,8 +1,8 @@
 import * as peaqDidProto from 'peaq-did-proto-js';
 import { defaultOptions } from '@peaq-network/types';
 import { Attribute } from '@peaq-network/types/interfaces';
-import { CustomDocumentFields, Did } from './index';
-import { Address, DidDocument, ReadDidResponse, SDKMetadata, CreateStorageKeysEnum } from '../../types';
+import { Did } from './index';
+import { Address, SDKMetadata, CreateStorageKeysEnum } from '../../types';
 
 import { evmToAddress } from '@polkadot/util-crypto';
 import { hexToU8a } from '@polkadot/util';
@@ -10,6 +10,15 @@ import { createStorageKeys } from '../../utils';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 
 import { ethers } from 'ethers';
+
+import {
+    CreateDidOptions,
+    ReadDidOptions,
+    UpdateDidOptions,
+    RemoveDidOptions,
+    EvmTransaction,
+    ReadDidResponse
+} from './interface';
 
 
 enum FunctionSignatures {
@@ -23,38 +32,10 @@ enum PrecompileAddresses {
     DID = "0x0000000000000000000000000000000000000800"
 }
 
-interface CreateDidOptions {
-    name: string;
-    address: Address;
-    customDocumentFields?: CustomDocumentFields;
-}
-
-interface ReadDidOptions {
-  name: string;
-  address: Address;
-  wssBaseUrl: string;
-}
-
-interface UpdateDidOptions {
-  name: string;
-  address: Address;
-  customDocumentFields: CustomDocumentFields;
-}
-
-interface RemoveDidOptions {
-    name: string;
-    address: Address;
-  }
-
-export interface EvmTransaction {
-    to: string;
-    data: string;
-}
-
 /**
  * Class that builds peaq's DID EVM transactions.
  */
-export class DIDInterfaceEVM {
+export class DidClassEvm {
     private abiCoder = new ethers.AbiCoder();
     private did: Did;
     private _metadata: SDKMetadata;
@@ -75,7 +56,9 @@ export class DIDInterfaceEVM {
      */
     public async create(options: CreateDidOptions): Promise<EvmTransaction> {
         const { name, address, customDocumentFields } = options;
+
         this._checkEvmAddress(address);
+
         const createDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.ADD_ATTRIBUTE)).substring(0, 10);
 
         const didAddress = address;
@@ -184,14 +167,20 @@ export class DIDInterfaceEVM {
     /**
      * Used to validate a proper H160 address is being passed.
      */
-    private _checkEvmAddress(address: Address){
+    private _checkEvmAddress(address: Address | undefined){
         if (!ethers.isAddress(address)) {
             throw new Error(`${address} is not a valid EVM address`);
         }
     }
 
-    private async _storageDecoder(name: string, address: Address, wssBaseUrl: string) {
+    private async _storageDecoder(name: string, address: Address | undefined, wssBaseUrl: string | undefined) {
         // Convert EVM to Substrate address
+        if (address == undefined){
+            throw new Error("Address cannot be undefined. Please set to a valid address.");
+        }
+        if (wssBaseUrl == undefined) {
+            throw new Error("wssBaseUrl cannot be undefined. Please set a valid WSS url.");
+        }
         const substrateAddress = evmToAddress(address);
 
         const { hashed_key } = createStorageKeys([

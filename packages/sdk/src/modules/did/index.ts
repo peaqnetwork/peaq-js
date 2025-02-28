@@ -8,119 +8,30 @@ import type { ISubmittableResult } from '@polkadot/types/types';
 
 import { createStorageKeys } from '../../utils';
 import { GenerateDidError, CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
-import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
+import type { Address, SDKMetadata } from '../../types';
 import { ChainType, CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
 
-import { DIDInterfaceEVM, EvmTransaction } from './evm_interface_did';
+import { DidClassEvm } from './evm_class_did';
 
-export interface CustomDocumentFields {
-  prefix?: string,
-  controller?: string,
-  verifications?: Verification[],
-  signature?: Signature,
-  services?: Service[];
-}
-
-export interface UpdateDocumentFields {
-  prefix?: string,
-  controller?: string,
-  verifications?: Verification[],
-  signature?: Signature,
-  services?: Service[];
-}
-
-type Verification = {
-  id?: string;
-  type: string;
-  controller?: string;
-  publicKeyMultibase?: string;
-}
-
-type Signature = {
-  type: string;
-  issuer: string;
-  hash: string;
-}
-
-type Service = {
-  id: string;
-  type: string;
-  serviceEndpoint?: string;
-  data?: string;
-}
-
-export interface GenerateDidOptions {
-  address: Address;
-  customDocumentFields?: CustomDocumentFields;
-  update?: UpdateGeneratedDoc;
-}
-
-interface UpdateGeneratedDoc {
-  name: string;
-  value: boolean;
-}
-
-interface CreateDidOptions {
-  name: string;
-  address?: Address;
-  seed?: string;
-  customDocumentFields?: CustomDocumentFields;
-}
-
-interface ReadDidOptions {
-  name: string;
-  address?: Address;
-  wssBaseUrl?: string;
-}
-
-interface UpdateDidOptions {
-  name: string;
-  address?: Address;
-  seed?: string;
-  customDocumentFields: UpdateDocumentFields;
-}
-
-interface UpdateDidDocumentOptions {
-  didAccountAddress: Address;
-  didControllerAddress: Address;
-  customDocumentFields?: UpdateDocumentFields;
-  oldDocument: DidDocument
-}
-
-interface RemoveDidOptions {
-  name: string;
-  address?: Address;
-  seed?: string;
-}
-
-export interface GenerateDidResult {
-  value: string;
-}
-
-export interface CreateDidResult {
-  block_hash: CodecHash;
-  unsubscribe: () => void;
-}
-
-export interface RemoveDidResult {
-  log?: string,
-  block_hash: CodecHash;
-  unsubscribe: () => void;
-}
-
-interface UpdateDidResult {
-  log: string,
-  block_hash: CodecHash;
-  unsubscribe: () => void;
-}
-
-
-interface DidDocumentOptions {
-  didAccountAddress: Address;
-  didControllerAddress: Address;
-  customDocumentFields?: CustomDocumentFields;
-}
+import {
+  Verification,
+  Signature,
+  Service,
+  GenerateDidOptions,
+  CreateDidOptions,
+  ReadDidOptions,
+  UpdateDidOptions,
+  UpdateDidDocumentOptions,
+  RemoveDidOptions,
+  GenerateDidResult,
+  CreateDidResult,
+  ReadDidResponse,
+  RemoveDidResult,
+  UpdateDidResult,
+  DidDocumentOptions,
+  EvmTransaction
+} from './interface';
 
 export class Did extends Base {
   constructor(
@@ -142,7 +53,9 @@ export class Did extends Base {
     try {
 
       const { address = '', customDocumentFields, update} = options;
-      // if (address !== '') this._checkAddress(address);
+      if (address == undefined) {
+        throw new Error("Address cannot be undefined. Must set a valid address.")
+      }
 
       const accountAddress = address;
       let didDocumentHash;
@@ -196,7 +109,7 @@ export class Did extends Base {
       if (this._metadata?.chainType  == ChainType.EVM) {
         // address is required for EVM since it is not stored with the key-pair
         if (!address) throw new Error("Address is required when creating an EVM transaction since an Account is never stored from seed.");
-          const evm = new DIDInterfaceEVM(this._metadata);
+          const evm = new DidClassEvm(this._metadata);
           return await evm.create({name: name,  address: address, customDocumentFields: customDocumentFields})
       }
 
@@ -248,7 +161,7 @@ export class Did extends Base {
       if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
         if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
-        const evm = new DIDInterfaceEVM(this._metadata);
+        const evm = new DidClassEvm(this._metadata);
         return await evm.read({name: name,  address: address, wssBaseUrl: wssBaseUrl})
       }
 
@@ -302,7 +215,7 @@ export class Did extends Base {
       if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when updating an EVM transaction since an Account is never stored from seed.");
         if (!customDocumentFields) throw new NoCustomFieldsError('DID Document fields must be configured before manually changing.');
-        const evm = new DIDInterfaceEVM(this._metadata);
+        const evm = new DidClassEvm(this._metadata);
         return await evm.update({name: name,  address: address, customDocumentFields: customDocumentFields})
       }
 
@@ -366,7 +279,7 @@ export class Did extends Base {
 
       if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
-        const evm = new DIDInterfaceEVM(this._metadata);
+        const evm = new DidClassEvm(this._metadata);
         return await evm.remove({name: name,  address: address})
       }
 
@@ -511,7 +424,7 @@ export class Did extends Base {
 
     // set controller if present in customDocumentFields
     if (customDocumentFields?.controller){
-      document = this._setController(customDocumentFields, document);
+      document = this._setController(customDocumentFields?.controller, document);
     }
     else { // default set controller
       document.setController(this._getDidId(didControllerAddress.toString(), this._prefix));
@@ -572,7 +485,7 @@ export class Did extends Base {
     }
 
     if (customDocumentFields?.controller) {
-      newDocument = this._setController(customDocumentFields, newDocument);
+      newDocument = this._setController(customDocumentFields?.controller, newDocument);
     }
     else  {
       const oldController = oldDocument.controller;
@@ -617,8 +530,8 @@ export class Did extends Base {
     return hash;
   }
 
-  private _setController(customDocumentFields: UpdateDocumentFields, newDocument: peaqDidProto.Document){
-      const controllerHold = customDocumentFields?.controller;
+  private _setController(passedController: string, newDocument: peaqDidProto.Document){
+      const controllerHold = passedController;
       const controller = `did:${this._prefix}:${controllerHold}`;
 
       const regexSS58 = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/;
