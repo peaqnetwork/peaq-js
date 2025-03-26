@@ -7,6 +7,8 @@ import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 // function input parameters
 export interface GenerateDidOptions {
     address: Address | undefined;
+    chainType?: string; // used to check how the string should be created
+    wssBaseUrl?: string;
     customDocumentFields?: CustomDocumentFields;
     update?: UpdateGeneratedDoc;
 }
@@ -38,6 +40,7 @@ export interface UpdateDidOptions {
     name: string;
     address?: Address;
     seed?: string;
+    wssBaseUrl?: string;
     customDocumentFields: UpdateDocumentFields;
 }
 

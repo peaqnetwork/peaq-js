@@ -1202,7 +1202,7 @@ export class RBAC extends Base {
       const api = this._getApi();
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const unassignRoleToGroupExtrinsics = api.tx?.['peaqRbac']?.[
-        'unassignPermissionToRole'
+        'unassignRoleToGroup'
       ](stringToU8a(roleId), stringToU8a(groupId));
       const nonce = await this._getNonce(address || keyPair.address);
       await this._newSignTx({
@@ -1328,7 +1328,7 @@ export class RBAC extends Base {
         extrinsics: updateGroupExtrinsics,
       });
       return {
-        message: `Successfully update group ${groupId} with new name: ${name}`,
+        message: `Successfully update group ${groupId} with new name: ${groupName}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while update group: ${error}`);
@@ -1366,7 +1366,7 @@ export class RBAC extends Base {
         extrinsics: updatePermissionExtrinsics,
       });
       return {
-        message: `Successfully update permission ${permissionId} with new name: ${name}`,
+        message: `Successfully update permission ${permissionId} with new name: ${permissionName}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while update permission: ${error}`);
@@ -1405,7 +1405,7 @@ export class RBAC extends Base {
         extrinsics: updateRoleExtrinsics,
       });
       return {
-        message: `Successfully update role ${roleId} with new name: ${name}`,
+        message: `Successfully update role ${roleId} with new name: ${roleName}`,
       };
     } catch (error) {
       throw new Error(`Error occurred while update role: ${error}`);

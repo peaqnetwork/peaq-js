@@ -6,12 +6,11 @@ import { u8aToHex, hexToU8a } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
 
-import { createStorageKeys } from '../../utils';
+import { createStorageKeys, checkEvmAddress } from '../../utils';
 import { GenerateDidError, CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
 import type { Address, SDKMetadata } from '../../types';
 import { ChainType, CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
-
 import { DidClassEvm } from './evm_class_did';
 
 import {
@@ -51,31 +50,34 @@ export class Did extends Base {
    */
   public async generate(options: GenerateDidOptions): Promise<GenerateDidResult> {
     try {
-
-      const { address = '', customDocumentFields, update} = options;
+      const { address = '', chainType, wssBaseUrl, customDocumentFields, update} = options;
       if (address == undefined) {
         throw new Error("Address cannot be undefined. Must set a valid address.")
       }
-
-      const accountAddress = address;
+      if (chainType == ChainType.EVM) {
+        checkEvmAddress(address);
+      }
+      else {
+        this._checkSubstrateAddress(address);
+      }
       let didDocumentHash;
-
       if (update?.value) {
-        const readDocument = await this.read({name: update.name, address: accountAddress});
-        if (!readDocument) throw new DidNotFoundError(`DID Document of name ${update.name} for the account address ${accountAddress} was not found.`);
+        const readDocument = await this.read({name: update.name, address: address, wssBaseUrl: wssBaseUrl});
+
+        if (!readDocument) throw new DidNotFoundError(`DID Document of name ${update.name} for the account address ${address} was not found.`);
         const oldDocument = readDocument?.document as DidDocument;
 
         didDocumentHash = this._updateDidDocument({
-          didAccountAddress: accountAddress,
-          didControllerAddress: accountAddress,
+          didAccountAddress: address,
+          didControllerAddress: address,
           customDocumentFields: customDocumentFields,
           oldDocument: oldDocument
         });
       }
       else {
         didDocumentHash = this._generateDidDocument({
-          didAccountAddress: accountAddress,
-          didControllerAddress: accountAddress,
+          didAccountAddress: address,
+          didControllerAddress: address,
           customDocumentFields,
         });
       }
@@ -109,6 +111,7 @@ export class Did extends Base {
       if (this._metadata?.chainType  == ChainType.EVM) {
         // address is required for EVM since it is not stored with the key-pair
         if (!address) throw new Error("Address is required when creating an EVM transaction since an Account is never stored from seed.");
+          checkEvmAddress(address);
           const evm = new DidClassEvm(this._metadata);
           return await evm.create({name: name,  address: address, customDocumentFields: customDocumentFields})
       }
@@ -161,8 +164,9 @@ export class Did extends Base {
       if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
         if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        checkEvmAddress(address);
         const evm = new DidClassEvm(this._metadata);
-        return await evm.read({name: name,  address: address, wssBaseUrl: wssBaseUrl})
+        return await evm.read({name: name, address: address, wssBaseUrl: wssBaseUrl})
       }
 
       const api = this._getApi();
@@ -208,15 +212,16 @@ export class Did extends Base {
   ): Promise<UpdateDidResult | EvmTransaction | null> {
     try {
 
-      const { name, address = '', seed = '', customDocumentFields } = options;
+      const { name, address = '', wssBaseUrl, seed = '', customDocumentFields } = options;
       if (!name) throw new NameError('Name is required when updating a DID.');
       if (seed !== '') this._checkSeed(seed);
 
       if (this._metadata?.chainType  == ChainType.EVM) {
         if (!address) throw new Error("Address is required when updating an EVM transaction since an Account is never stored from seed.");
         if (!customDocumentFields) throw new NoCustomFieldsError('DID Document fields must be configured before manually changing.');
+        checkEvmAddress(address);
         const evm = new DidClassEvm(this._metadata);
-        return await evm.update({name: name,  address: address, customDocumentFields: customDocumentFields})
+        return await evm.update({name: name,  address: address, wssBaseUrl: wssBaseUrl, customDocumentFields: customDocumentFields})
       }
 
       const api = this._getApi();
@@ -271,7 +276,7 @@ export class Did extends Base {
    */
   public async remove(options: RemoveDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<RemoveDidResult | EvmTransaction | null> {
+  ): Promise<RemoveDidResult | EvmTransaction> {
     try {
       const { name, address = '', seed = '' } = options;
       if (!name) throw new NameError('Name is required when removing a DID.');

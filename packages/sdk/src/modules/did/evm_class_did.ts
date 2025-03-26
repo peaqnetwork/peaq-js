@@ -2,7 +2,7 @@ import * as peaqDidProto from 'peaq-did-proto-js';
 import { defaultOptions } from '@peaq-network/types';
 import { Attribute } from '@peaq-network/types/interfaces';
 import { Did } from './index';
-import { Address, SDKMetadata, CreateStorageKeysEnum } from '../../types';
+import { Address, SDKMetadata, CreateStorageKeysEnum, ChainType } from '../../types';
 
 import { evmToAddress } from '@polkadot/util-crypto';
 import { hexToU8a } from '@polkadot/util';
@@ -57,14 +57,12 @@ export class DidClassEvm {
     public async create(options: CreateDidOptions): Promise<EvmTransaction> {
         const { name, address, customDocumentFields } = options;
 
-        this._checkEvmAddress(address);
-
         const createDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.ADD_ATTRIBUTE)).substring(0, 10);
 
         const didAddress = address;
         const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
 
-        const didDocHash = await this.did.generate({ address, customDocumentFields });
+        const didDocHash = await this.did.generate({ address, chainType: ChainType.EVM, customDocumentFields });
         const didVal = ethers.hexlify(ethers.toUtf8Bytes(didDocHash.value));
         const validityFor = 0;
 
@@ -92,7 +90,6 @@ export class DidClassEvm {
      */
     public async read(options: ReadDidOptions): Promise<ReadDidResponse | null>  {
         const { name, address, wssBaseUrl } = options;
-        this._checkEvmAddress(address);
         return this._storageDecoder(name, address, wssBaseUrl);
     }
 
@@ -107,15 +104,15 @@ export class DidClassEvm {
      * @returns tx - The transaction object for update DID that a user can send manually.
      */
     public async update(options: UpdateDidOptions): Promise <EvmTransaction> {
-        const { name, address, customDocumentFields } = options;
-        this._checkEvmAddress(address);
+        const { name, address, wssBaseUrl, customDocumentFields } = options;
 
         const updateDidFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.UPDATE_ATTRIBUTE)).substring(0, 10);
         const didAddress = address;
         const didName = ethers.hexlify(ethers.toUtf8Bytes(name));
 
         // generate an updated DID Document Hash
-        const didDocHash = await this.did.generate({ address, customDocumentFields, update: {name: name, value: true}});
+        const didDocHash = await this.did.generate({address, chainType: ChainType.EVM, wssBaseUrl: wssBaseUrl, customDocumentFields, update: {name: name, value: true}});
+
         const didVal = ethers.hexlify(ethers.toUtf8Bytes(didDocHash.value));
         const validityFor = 0;
 
@@ -199,6 +196,7 @@ export class DidClassEvm {
         const did = (await api.query?.['peaqDid']?.['attributeStore'](
             hashed_key
         )) as unknown as Attribute;
+        await api.disconnect();
 
         if (!did || did.isStorageFallback) {
             throw new Error(`Data for the name ${name} at the wss url ${wssBaseUrl} at address ${address} was not found.`);
@@ -219,7 +217,7 @@ export class DidClassEvm {
             return api;
         }
         catch(error) {
-            throw new Error(`WSS base url of ${wssBaseUrl}, is not valid with error message: ${error}`)
+            throw new Error(`Base url of ${wssBaseUrl}, is not valid. It must start with 'wss://' to establish WSS connection to read data.`)
         }
     }
 }

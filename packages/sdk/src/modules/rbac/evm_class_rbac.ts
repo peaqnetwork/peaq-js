@@ -504,6 +504,8 @@ export class RbacClassEvm {
             hashedKey.hashed_key
         )) as unknown as Entity;
 
+        await api.disconnect();
+
         const { id, name, enabled } = JSON.parse(JSON.stringify(value.toHuman()));
 
         if (!name) {
@@ -527,6 +529,7 @@ export class RbacClassEvm {
         const roles = (await api.query?.['peaqRbac']?.['roleStore'](
             substrateAddress
         )) as unknown as Entity[];
+        await api.disconnect();
         if (!roles) {
             throw new Error(
                 `Roles not exits with this owner address = ${owner}`
@@ -550,7 +553,7 @@ export class RbacClassEvm {
         const rolePermissions = (await api.query?.['peaqRbac']?.[storeQuery](
             hashedKey.hashed_key
         )) as unknown as Permission2Role[];
-
+        await api.disconnect();
         if (!rolePermissions){
             throw new Error(`Permission not exits with this roleId = ${roleId}`);
         }
@@ -580,7 +583,7 @@ export class RbacClassEvm {
         const value = (await api.query?.['peaqRbac']?.[storeQuery](
             hashedKey.hashed_key
         )) as unknown as Entity;
-
+        await api.disconnect();
         const { id, name, enabled } = JSON.parse(JSON.stringify(value.toHuman()));
 
         if (!name) {
@@ -604,6 +607,7 @@ export class RbacClassEvm {
         const groups = (await api.query?.['peaqRbac']?.['groupStore'](
             substrateAddress
         )) as unknown as Entity[];
+        await api.disconnect();
         if (!groups) {
             throw new Error(
                 `Groups do not exits with this owner address = ${owner}`
@@ -627,7 +631,7 @@ export class RbacClassEvm {
         const role2GroupData = (await api.query?.['peaqRbac']?.[storeQuery](
             hashedKey.hashed_key
         )) as unknown as Role2Group[];
-
+        await api.disconnect();
         if (!role2GroupData){
             throw new Error(`Permission not exits with this groupId = ${groupId}`);
         }
@@ -657,6 +661,7 @@ export class RbacClassEvm {
         const value = (await api.query?.['peaqRbac']?.[storeQuery](
             hashedKey.hashed_key
         )) as unknown as Entity;
+        await api.disconnect();
 
         const { id, name, enabled } = JSON.parse(JSON.stringify(value.toHuman()));
 
@@ -682,6 +687,8 @@ export class RbacClassEvm {
         const permissions = (await api.query?.['peaqRbac']?.['permissionStore'](
             substrateAddress
         )) as unknown as Entity[];
+        await api.disconnect();
+
         if (!permissions) {
             throw new Error(
                 `Permission not exits with this owner address = ${owner}`
@@ -706,6 +713,7 @@ export class RbacClassEvm {
         const role2userData = (await api.query?.['peaqRbac']?.[storeQuery](
             hashedKey.hashed_key
         )) as unknown as Role2User[];
+        await api.disconnect();
 
         const responseRole2User: FetchResponseRole2User[] = role2userData?.map(
             (item) => JSON.parse(JSON.stringify(item.toHuman()))
@@ -729,6 +737,7 @@ export class RbacClassEvm {
         const userGroups = (await api.query?.['peaqRbac']?.[storeQuery](
             hashedKey.hashed_key
         )) as unknown as User2Group[];
+        await api.disconnect();
 
         if (!userGroups) {
             throw new Error(`No group is assigned to this user`);
@@ -753,11 +762,11 @@ export class RbacClassEvm {
 
         const api = await this._getApiProvider(wssBaseUrl);
 
-
         // Role2User
         const role2userData = (await api.query?.['peaqRbac']?.['role2UserStore'](
             Role2User_Key.hashed_key
         )) as unknown as Role2User[];
+
         const responseRole2User: FetchResponseRole2User[] = role2userData?.map(
             (item) => JSON.parse(JSON.stringify(item.toHuman()))
         );
@@ -778,15 +787,16 @@ export class RbacClassEvm {
             }
         }
 
-
         // User2Group
         const user2GroupData = (await api.query?.['peaqRbac']?.[
             'user2GroupStore'
         ](User2Group_Key.hashed_key)) as unknown as User2Group[];
+
         const responseUser2Group: ResponseFetchUserGroups[] = user2GroupData?.map(
             (item) => JSON.parse(JSON.stringify(item.toHuman()))
         );
         if (responseUser2Group.length === 0) {
+            await api.disconnect();
             return permissions;
         }
         for (const resUser2Group1 of responseUser2Group) {
@@ -813,6 +823,7 @@ export class RbacClassEvm {
             }
             }
         }
+        await api.disconnect();
         return permissions;
     };
 
@@ -828,6 +839,7 @@ export class RbacClassEvm {
         const role2GroupData = (await api.query?.['peaqRbac']?.[
           'role2GroupStore'
         ](hashedKey.hashed_key)) as unknown as Role2Group[];
+
         const responseRole2UserGroup: FetchResponseRole2Group[] = role2GroupData?.map(
           (item) => JSON.parse(JSON.stringify(item.toHuman()))
         );
@@ -847,6 +859,7 @@ export class RbacClassEvm {
               permissions.push(responseFetchPermission);
             }
           }
+        await api.disconnect();
         return permissions;
         } else {
             throw new Error(`No permission is found with this groupId: ${groupId}`);

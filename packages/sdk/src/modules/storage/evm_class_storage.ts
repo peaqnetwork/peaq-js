@@ -196,6 +196,7 @@ export class StorageClassEvm {
         const item = (await api.query?.['peaqStorage']?.['itemStore'](
             hashed_key
         ));
+        await api.disconnect();
         if (item.toHuman() == ''){
             throw new Error(`Data for the name ${name} at the wss url ${wssBaseUrl} at address ${address} was not found.`);
         }
