@@ -23,16 +23,23 @@ export class Ptp extends Base {
    * @returns BigInt timestamp in nanoseconds
    */
   private getNanoTimestamp(): bigint {
-    if (typeof window !== 'undefined' && window.performance) {
+    return BigInt(Date.now()) * BigInt(1_000_000);
+    // TODO: Implement process.hrtime for Node.js for exact NS timestamp
+    /* if (typeof window !== 'undefined' && window.performance) {
       // Browser environment
       return BigInt(Date.now()) * BigInt(1_000_000);
     } else if (typeof process !== 'undefined' && process.hrtime) {
       // Node.js environment
-      return process.hrtime.bigint();
+      const unixMillis = Date.now();
+      const hrTime = process.hrtime.bigint();
+      const nodeUptime = process.uptime() * 1000; // uptime in milliseconds
+      const uptimeMillisBigInt = BigInt(Math.floor(nodeUptime));
+      const baseMillis = BigInt(unixMillis) - uptimeMillisBigInt;
+      return (baseMillis * BigInt(1_000_000)) + (hrTime % BigInt(1_000_000));
     } else {
       // Fallback (less precise)
       return BigInt(Date.now()) * BigInt(1_000_000);
-    }
+    } */
   }
 
   /**
