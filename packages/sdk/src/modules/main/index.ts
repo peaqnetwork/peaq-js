@@ -1,22 +1,26 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { mnemonicValidate, cryptoWaitReady } from '@polkadot/util-crypto';
 import { defaultOptions } from '@peaq-network/types';
+import { ethers } from 'ethers';
 
 import { unsubscribeRuntimeVersion } from '../../utils';
-import type { Options, SDKMetadata } from '../../types';
-
+import { ChainType, type CreateInstanceOptions, type SDKMetadata, type SendEvmTx } from '../../types';
 import { Base } from '../base';
-import { GenerateDidOptions, GenerateDidResult, Did } from '../did';
+import { Did } from '../did';
+import { GenerateDidOptions, GenerateDidResult } from '../did/interface';
 import { RBAC } from '../rbac';
 import { Storage } from '../storage';
 import { Ptp, PtpOptions, type SyncResult } from '../ptp';
+
 
 /**
  * Main class for interacting with the SDK.
  */
 export class Main extends Base {
-  private readonly _options: Options;
-  protected override _api: ApiPromise;
+  static ChainType = ChainType;
+  
+  private readonly _options: CreateInstanceOptions;
+  protected override _api: ApiPromise | undefined;
   private _metadata: SDKMetadata;
 
   public did: Did;
@@ -24,12 +28,16 @@ export class Main extends Base {
   public storage: Storage;
   private ptp: Ptp;
 
-  constructor(options: Options) {
+  constructor(options: CreateInstanceOptions) {
     super();
     this._options = options;
-    this._api = this._createApi(options);
-    this._metadata = {};
-
+    this._metadata = {
+      "baseUrl": options.baseUrl, 
+      "chainType": options.chainType
+    };
+    
+    this._api = this._createApi();
+    
     this.did = new Did(this._api, this._metadata);
     this.rbac = new RBAC(this._api, this._metadata);
     this.storage = new Storage(this._api, this._metadata);
@@ -39,10 +47,13 @@ export class Main extends Base {
   /**
    * Creates a new instance of the SDK and connects to the network.
    *
-   * @param options - Options for the SDK.
-   * @returns The created instance of the SDK.
+   * @param CreateInstanceOptions - Options for the SDK with fields:
+   *    @param chainType - Used to differentiate between Substrate and EVM txs.
+   *    @param baseUrl - RPC url that the API will be connected to.
+   *    @param seed - Private key that will sign the transaction.
+   * @returns sdk - The SDK built with executable class functions.  
    */
-  public static async createInstance(options: Options): Promise<Main> {
+  public static async createInstance(options: CreateInstanceOptions): Promise<Main> {
     await cryptoWaitReady();
     const sdk = new Main(options);
     await sdk.connect();
@@ -51,9 +62,12 @@ export class Main extends Base {
 
   /**
    * Generates a hash of the DID Document without connecting to the chain.
-   *
-   * @param GenerateDidOptions - The options for generating a DID.
-   * @returns The hash value of the generated DID document
+   * 
+   * @param GenerateDidOptions - The options for generating a DID:
+   *    @param address - User address used to construct DID Document.
+   *    @param customDocumentFields - Fields that will populate the DID Document.
+   *    @param update - Indicates whether you want to build an upgradable DID Document.
+   * @returns The hash value of the generated DID document to be stored on chain.
    */
   public static async generateDidDocument(
     options: GenerateDidOptions
@@ -63,10 +77,15 @@ export class Main extends Base {
   }
 
   /**
-   * Connects the SDK to the network.
+   * Connects the SDK to the network. 
+   * 
+   * If chainType is EVM no connection is established.
    */
   public async connect(): Promise<void> {
     try {
+      if (this._metadata.chainType == ChainType.EVM) {
+        return
+      }
       if (!this._api) return;
 
       await this._api.isReadyOrError;
@@ -80,7 +99,7 @@ export class Main extends Base {
   }
 
   /**
-   * Disconnects the SDK from the network.
+   * Disconnects the SDK from the wss connected network.
    */
   public async disconnect(): Promise<void> {
     try {
@@ -93,6 +112,9 @@ export class Main extends Base {
     }
   }
 
+  /**
+   * Checks the seed passed when connecting Substrate.
+   */
   private _validateOptions(): void {
     const { seed = '' } = this._options;
     if (seed) {
@@ -101,6 +123,10 @@ export class Main extends Base {
     }
   }
 
+  /**
+   * Sets the KeyPair in a metadata object so it can be used later
+   * to send transactions on behalf of the user.
+   */
   private _setMetadata(): void {
     const { seed = '' } = this._options;
     if (seed) {
@@ -110,20 +136,111 @@ export class Main extends Base {
   }
 
   /**
-   * Creates a new instance of the Polkadot API.
-   *
-   * @param options - Options for the API.
-   * @returns The created instance of the API.
+   * Creates a new instance of the peaq's native Polkadot API connection.
+   * 
+   * @returns undefined - When EVM is set, there is no API connection initialized.
+   * @returns ApiPromise - Instance of the Substrate wss connection.
    */
-  private _createApi(options: Options): ApiPromise {
-    const { baseUrl } = options || this._options;
-    const provider = new WsProvider(baseUrl);
-    return new ApiPromise({
-      provider,
-      noInitWarn: true,
-      ...defaultOptions,
-    });
+  private _createApi(): ApiPromise | undefined {
+      if (this._metadata.chainType == ChainType.EVM) {
+        if (!this._metadata.baseUrl.startsWith("https://")) {
+          throw new Error(
+            `Invalid base URL for EVM interactions: ${this._metadata.baseUrl}. It must start with 'https://' to establish RPC connection.`
+            )}
+        if (this._options.seed) {
+          throw new Error("Construction of EVM txs does not require seed/private key. Use the sendEvmTx() to send a transaction on chain with a private key or send manually.")
+        }
+        return undefined
+        }
+  
+      // Sets up a substrate api connection if chain_id is set or undefined (defaults if chainType not set)
+      else if (this._metadata.chainType == ChainType.SUBSTRATE || this._metadata.chainType == undefined ) {
+        if (!this._metadata.baseUrl.startsWith("wss://")) {
+          throw new Error(
+            `Invalid base URL for Substrate interactions: ${this._metadata.baseUrl}. It must start with 'wss://' to establish WSS connection.`
+            )}
+
+        const provider = new WsProvider(this._metadata.baseUrl);
+        return new ApiPromise({
+          provider,
+          noInitWarn: true,
+          ...defaultOptions,
+        });
+      }
+
+      else {
+        throw new Error("Chain Type not recognized. Please set to either 'evm' or 'substrate' based on what environment you are trying to connect to. No chainType set defaults to substrate.")
+      }
   }
+
+  /**
+   * Send an EVM transaction on behalf of the user using their funded wallet using their seed/private key.
+   * 
+   * @param SendEvmTx - Object with the parameters:
+   *    @param tx - EVM tx object that will be sent to chain. Use sdk to generate peaq txs.
+   *    @param baseUrl - RPC url connection to the node that will execute the tx.
+   *    @param seed - Private key that will sign the transaction.
+   * @returns The receipt of the transaction.
+   */
+  public static async sendEvmTx(options: SendEvmTx) {
+    const { tx, baseUrl, seed } = options;
+    if (!tx) {
+      throw new Error("Transaction is required for EVM execution.");
+    }
+    try {
+      let provider;
+      if (baseUrl.startsWith('wss')) {
+        throw new Error(`Invalid base URL for EVM interactions: ${ baseUrl}. It must start with 'https://'.`);
+      } else if (baseUrl.startsWith('https')) {
+        // JsonRpcProvider for HTTPS URLs
+        provider =  new ethers.JsonRpcProvider(baseUrl);
+      } else {
+        throw new Error(`Invalid base URL for EVM interactions: ${baseUrl}. It must start with 'https://'.`);
+      }
+      const signer = this._isEvmWalletInputValid(seed, provider);
+      const response = await signer.sendTransaction(tx);
+      const receipt = await response.wait().finally();
+      return receipt
+      }
+
+  catch(error) {
+    let errorMessage = "";
+
+    // Narrow the error type: check if it's an object with a 'reason' property
+    if (error && typeof error === 'object' && 'reason' in error) {
+      errorMessage = (error as any).reason || "";
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    } else {
+      errorMessage = String(error);
+    }
+    const regex = /message:\s*Some\("([^"]+)"\)/;
+    const match = errorMessage.match(regex);
+    const extractedMessage = match ? match[1] : errorMessage;
+  
+    throw new Error(`Transaction reverted with error: ${extractedMessage}`);
+    }
+  }
+
+/**
+* Builds an EVM wallet for the user to send transactions.
+* Allows for the wallet to be built with a private key or mnemonic phrase.
+* 
+* @param key - Private key or seed phrase used to construct the wallet.
+* @param provider - Ethers provider that establishes the sender's connection.
+* @returns The new EVM wallet that will be used to send the tx.
+*/
+  private static _isEvmWalletInputValid(key: string, provider: ethers.Provider): ethers.Wallet | ethers.HDNodeWallet {
+    try {
+        return ethers.Wallet.fromPhrase(key, provider);
+    } catch (error) {
+        try {
+            return new ethers.Wallet(key, provider);
+        } catch (error) {
+            throw new Error("Input is neither a valid mnemonic nor a private key");
+        }
+    }
+}
 
   /**
    * Subscribes to PTP time synchronization updates

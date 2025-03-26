@@ -5,17 +5,30 @@ import { BN } from '@polkadot/util';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { SubmittableExtrinsic } from '@polkadot/api-base/types';
 import type { Event, Phase } from "@polkadot/types/interfaces";
-import { Codec } from '@polkadot/types/types'
+import { Codec } from '@polkadot/types/types';
+
+export enum ChainType {
+  EVM = "evm",
+  SUBSTRATE = "substrate"
+}
 
 export type Address = AccountId32 | string;
 
+export interface CreateInstanceOptions {
+  chainType?: ChainType;
+  baseUrl: string;
+  seed?: string;
+}
 export interface SDKMetadata {
+  chainType?: ChainType;
+  baseUrl: string;
   pair?: KeyringPair;
 }
 
-export interface Options {
-  baseUrl?: string;
-  seed?: string;
+export interface SendEvmTx {
+  tx: Object | undefined;
+  baseUrl: string;
+  seed: string;
 }
 
 export interface CreateStorageKeysArgs {
@@ -51,14 +64,6 @@ export interface DidDocument {
   authentications: string[];
 }
 
-export interface ReadDidResponse {
-  name: string;
-  value: string;
-  validity: string;
-  created: string;
-  document: DidDocument;
-}
-
 export interface Attribute extends Struct {
   readonly name: Bytes;
   readonly value: Bytes;
@@ -73,30 +78,10 @@ export interface SignTransction{
   statusCallback?: (result: ISubmittableResult) => void;
 }
 
-export interface FetchResponseData{
-  id: string;
-  name: string;
-  enabled: boolean;
-}
 
 export interface ResponsePermission{
   permission: string,
   role: string
-}
-
-export interface ResponseFetchUserGroups{
-  user: string,
-  group: string
-}
-
-export interface ResponseRole2User{
-  role: string,
-  user: string
-}
-
-export interface ResponseRole2Group{
-  role: string,
-  group: string
 }
 
 export interface PeaqEventData{

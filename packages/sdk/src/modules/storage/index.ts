@@ -1,57 +1,25 @@
 import { ApiPromise } from '@polkadot/api';
 import type { ISubmittableResult } from '@polkadot/types/types';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
-import { CreateStorageKeysEnum, Address } from '../../types';
+import { ChainType, CreateStorageKeysEnum, Address } from '../../types';
 import { createStorageKeys } from '../../utils';
 import { stringToU8a, u8aToHex, hexToString } from '@polkadot/util';
 import { StorageError, ItemTypeError, ItemError, StorageAddressError, StorageSeedError} from '../../utils/errors';
 import type { SDKMetadata} from '../../types';
 import { Base } from '../base';
+import { StorageClassEvm } from './evm_class_storage';
 
-type AddItemOptions = {
-    itemType: string;
-    item: string;
-    seed?: string;
-} 
-
-type RemoveItemOptions = {
-    itemType: string;
-    seed?: string;
-}
-
-type GetItemOptions = {
-    itemType: string;
-    address?: string;
-}
-
-type UpdateItemOptions = {
-    itemType: string;
-    item: string;
-    seed?: string;
-}
-
-type AddItemResult = {
-    message: string;
-    block_hash: CodecHash;
-    unsubscribe: () => void;
-}
-
-type RemoveItemResult = {
-    message: string;
-    block_hash: CodecHash;
-    unsubscribe: () => void;
-}
-
-type GetItemResult = {
-    data: string;
-}
-
-
-type UpdateItemResult = {
-    message: string;
-    block_hash: CodecHash;
-    unsubscribe: () => void;
-}
+import {
+    AddItemOptions,
+    RemoveItemOptions,
+    GetItemOptions,
+    UpdateItemOptions,
+    AddItemResult,
+    RemoveItemResult,
+    GetItemResult,
+    UpdateItemResult,
+    EvmTransaction
+} from './interface'
 
 export class Storage extends Base {
     constructor(
@@ -70,25 +38,22 @@ export class Storage extends Base {
     public async addItem(
      options: AddItemOptions,
      statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<AddItemResult> {
+  ): Promise<AddItemResult | EvmTransaction> {
     try {
-        const api = this._getApi();
-
         const {itemType, item, seed = ''} = options;
-        // Need to know what types itemType can to ensure proper storage (for example, only converts string to byte array to check length; conditional for other types)
-        // - is there a way to do this no matter the type?
-
-        // check if object is uint8array, if it is not then convert to see how big of storage will be needed
-
-        // checks
         if (!itemType) throw new ItemTypeError('Item Type name is required');
         if (!item) throw new ItemError('Item name is required');
         if (seed !== '') this._checkSeed(seed);
-
-        // convert string to bytes to count before calling extrinsics
         if (stringToU8a(itemType).length > 64) throw new ItemTypeError('New Item Type cannot be larger than 64 bytes');
         if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
 
+        // EVM tx logic if chainType is set to EVM
+        if (this._metadata?.chainType == ChainType.EVM) {
+            const evm = new StorageClassEvm();
+            return await evm.addItem({itemType: itemType,  item: item})
+        }
+        
+        const api = this._getApi();
         const keyPair = this._metadata?.pair || this._getKeyPair(seed);
         const attributeExtrinsic = api.tx?.['peaqStorage']?.['addItem'](
             itemType,
@@ -116,18 +81,23 @@ export class Storage extends Base {
     /**
      * Removes the itemType in peaqStorage
      */
-
     public async removeItem(
         options: RemoveItemOptions,
         statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-     ): Promise<RemoveItemResult> {
+     ): Promise<RemoveItemResult| EvmTransaction> {
         try {
-            const api = this._getApi();
-
             const { itemType, seed = ''} = options;
             if (!itemType) throw new ItemTypeError('Item Type name is required');
             if (seed !== '') this._checkSeed(seed);
 
+            // Needs removeItem() to be added to precompile
+            if (this._metadata?.chainType == ChainType.EVM) {
+                throw new Error("Remove item for EVM currently being developed.");
+                // const evm = new StorageClassEvm();
+                // return await evm.removeItem({itemType: itemType})
+            }
+
+            const api = this._getApi();
             const keyPair = this._metadata?.pair || this._getKeyPair(seed);
             const attributeExtrinsic = api.tx?.['peaqStorage']?.['removeItem'](
                 itemType
@@ -154,12 +124,19 @@ export class Storage extends Base {
 
      public async getItem(options: GetItemOptions): Promise<GetItemResult | null> {
        try {
-        const api = this._getApi();
-
-        const { itemType, address = '' } = options;
+        const { itemType, address = '', wssBaseUrl = '' } = options;
         if (!itemType) throw new ItemTypeError('Item Type name is required');
-        if (address !== '') this._checkAddress(address);
 
+        // EVM tx logic if chainType is set to EVM
+        if (this._metadata?.chainType == ChainType.EVM) {
+            if (!address) throw new Error("Address is required when reading from peaq EVM storage.");
+            if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+            const evm = new StorageClassEvm();
+            return await evm.getItem({itemType: itemType, address: address, wssBaseUrl: wssBaseUrl})
+        }
+
+        const api = this._getApi();
+        if (address !== '') this._checkAddress(address);
         const accountAddress = address || this._metadata?.pair?.address;
         if (!accountAddress) throw new StorageAddressError('Address is required');
 
@@ -178,7 +155,7 @@ export class Storage extends Base {
             if (!item || item.isStorageFallback) return null;
             // is toHuman acceptable here? What if a simple string is not passed?
             return {
-                data: `${item}`,
+                [itemType]: `${item.toHuman()}`,
             };
         }
        catch (error) {
@@ -188,21 +165,25 @@ export class Storage extends Base {
 
     public async updateItem(options: UpdateItemOptions,
         statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-      ): Promise<UpdateItemResult> {
+      ): Promise<UpdateItemResult | EvmTransaction> {
         try {
-            const api = this._getApi();
-
             const {itemType, item, seed = ''} = options;
     
             // checks
             if (!itemType) throw new ItemTypeError('Item Type name is required');
             if (!item) throw new ItemError('Item name is required');
             if (seed !== '') this._checkSeed(seed);
-            
             // convert string to bytes to count before calling extrinsics
             if (stringToU8a(itemType).length > 64) throw new ItemTypeError('New Item Type cannot be larger than 64 bytes');
             if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
     
+             // EVM tx logic if chainType is set to EVM
+            if (this._metadata?.chainType == ChainType.EVM) {
+                const evm = new StorageClassEvm();
+                return await evm.updateItem({itemType: itemType,  item: item})
+            }
+
+            const api = this._getApi();
             const keyPair = this._metadata?.pair || this._getKeyPair(seed);
             const attributeExtrinsic = api.tx?.['peaqStorage']?.['updateItem'](
                 itemType,

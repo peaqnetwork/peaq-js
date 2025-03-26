@@ -6,112 +6,31 @@ import { u8aToHex, hexToU8a } from '@polkadot/util';
 import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 import type { ISubmittableResult } from '@polkadot/types/types';
 
-import { createStorageKeys } from '../../utils';
-import { CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
-import type { Address, ReadDidResponse, SDKMetadata, SignTransction } from '../../types';
-import { CreateStorageKeysEnum, DidDocument } from '../../types';
+import { createStorageKeys, checkEvmAddress } from '../../utils';
+import { GenerateDidError, CreateDidError, NameError, SeedError, AddressError, ReadDidError, UpdateDidError, RemoveDidError, DidNotFoundError, NoCustomFieldsError} from '../../utils/errors';
+import type { Address, SDKMetadata } from '../../types';
+import { ChainType, CreateStorageKeysEnum, DidDocument } from '../../types';
 import { Base } from '../base';
+import { DidClassEvm } from './evm_class_did';
 
-export interface CustomDocumentFields {
-  prefix?: string,
-  controller?: string,
-  verifications?: Verification[],
-  signature?: Signature,
-  services?: Service[];
-}
-
-export interface UpdateDocumentFields {
-  prefix?: string,
-  controller?: string,
-  verifications?: Verification[],
-  signature?: Signature,
-  services?: Service[];
-}
-
-type Verification = {
-  id?: string;
-  type: string;
-  controller?: string;
-  publicKeyMultibase?: string;
-}
-
-type Signature = {
-  type: string;
-  issuer: string;
-  hash: string;
-}
-
-type Service = {
-  id: string;
-  type: string;
-  serviceEndpoint?: string;
-  data?: string;
-}
-
-export interface GenerateDidOptions {
-  address: Address;
-  customDocumentFields?: CustomDocumentFields;
-}
-
-interface CreateDidOptions {
-  name: string;
-  address?: Address;
-  seed?: string;
-  customDocumentFields?: CustomDocumentFields;
-}
-
-interface ReadDidOptions {
-  name: string;
-  address?: Address;
-}
-
-interface UpdateDidOptions {
-  name: string;
-  address?: Address;
-  seed?: string;
-  customDocumentFields: UpdateDocumentFields;
-}
-
-interface UpdateDidDocumentOptions {
-  didAccountAddress: Address;
-  didControllerAddress: Address;
-  customDocumentFields?: UpdateDocumentFields;
-  oldDocument: DidDocument
-}
-
-interface RemoveDidOptions {
-  name: string;
-  address?: Address;
-  seed?: string;
-}
-
-export interface GenerateDidResult {
-  value: string;
-}
-
-interface CreateDidResult {
-  block_hash: CodecHash;
-  unsubscribe: () => void;
-}
-
-interface RemoveDidResult {
-  log?: string,
-  block_hash: CodecHash;
-  unsubscribe: () => void;
-}
-
-interface UpdateDidResult {
-  log: string,
-  block_hash: CodecHash;
-  unsubscribe: () => void;
-}
-
-
-interface DidDocumentOptions {
-  didAccountAddress: Address;
-  didControllerAddress: Address;
-  customDocumentFields?: CustomDocumentFields;
-}
+import {
+  Verification,
+  Signature,
+  Service,
+  GenerateDidOptions,
+  CreateDidOptions,
+  ReadDidOptions,
+  UpdateDidOptions,
+  UpdateDidDocumentOptions,
+  RemoveDidOptions,
+  GenerateDidResult,
+  CreateDidResult,
+  ReadDidResponse,
+  RemoveDidResult,
+  UpdateDidResult,
+  DidDocumentOptions,
+  EvmTransaction
+} from './interface';
 
 export class Did extends Base {
   constructor(
@@ -131,23 +50,43 @@ export class Did extends Base {
    */
   public async generate(options: GenerateDidOptions): Promise<GenerateDidResult> {
     try {
+      const { address = '', chainType, wssBaseUrl, customDocumentFields, update} = options;
+      if (address == undefined) {
+        throw new Error("Address cannot be undefined. Must set a valid address.")
+      }
+      if (chainType == ChainType.EVM) {
+        checkEvmAddress(address);
+      }
+      else {
+        this._checkSubstrateAddress(address);
+      }
+      let didDocumentHash;
+      if (update?.value) {
+        const readDocument = await this.read({name: update.name, address: address, wssBaseUrl: wssBaseUrl});
 
-      const { address = '', customDocumentFields } = options;
-      if (address !== '') this._checkAddress(address);
+        if (!readDocument) throw new DidNotFoundError(`DID Document of name ${update.name} for the account address ${address} was not found.`);
+        const oldDocument = readDocument?.document as DidDocument;
 
-      const accountAddress = address;
-
-      const didDocumentHash = this._generateDidDocument({
-        didAccountAddress: accountAddress,
-        didControllerAddress: accountAddress,
-        customDocumentFields,
-      });
+        didDocumentHash = this._updateDidDocument({
+          didAccountAddress: address,
+          didControllerAddress: address,
+          customDocumentFields: customDocumentFields,
+          oldDocument: oldDocument
+        });
+      }
+      else {
+        didDocumentHash = this._generateDidDocument({
+          didAccountAddress: address,
+          didControllerAddress: address,
+          customDocumentFields,
+        });
+      }
 
       return {
         value: didDocumentHash,
       };
     } catch (error) {
-        throw new CreateDidError(`${error}`);
+        throw new GenerateDidError(`${error}`);
       }
   }
 
@@ -160,16 +99,26 @@ export class Did extends Base {
   public async create(
     options: CreateDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<CreateDidResult> {
+  ): Promise<CreateDidResult | EvmTransaction> {
     try {
-      const api = this._getApi();
 
       const { name, address = '', seed = '', customDocumentFields } = options;
 
       if (!name) throw new NameError('Name is required when creating a DID.');
       if (seed !== '') this._checkSeed(seed);
-      if (address !== '') this._checkAddress(address);
 
+      // EVM tx logic if chainType is set to EVM
+      if (this._metadata?.chainType  == ChainType.EVM) {
+        // address is required for EVM since it is not stored with the key-pair
+        if (!address) throw new Error("Address is required when creating an EVM transaction since an Account is never stored from seed.");
+          checkEvmAddress(address);
+          const evm = new DidClassEvm(this._metadata);
+          return await evm.create({name: name,  address: address, customDocumentFields: customDocumentFields})
+      }
+
+      // Create and send substrate transaction
+      const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
@@ -209,13 +158,19 @@ export class Did extends Base {
    */
   public async read(options: ReadDidOptions): Promise<ReadDidResponse | null> {
     try {
-      const api = this._getApi();
-
-      const { name, address = '' } = options;
-
+      const { name, address = '', wssBaseUrl = '' } = options;
       if (!name) throw new Error('Name is required when reading a DID.');
-      if (address !== '') this._checkAddress(address);
 
+      if (this._metadata?.chainType  == ChainType.EVM) {
+        if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        if (!wssBaseUrl) throw new Error("Need to provide a wss url for the chain you plan to read from.");
+        checkEvmAddress(address);
+        const evm = new DidClassEvm(this._metadata);
+        return await evm.read({name: name, address: address, wssBaseUrl: wssBaseUrl})
+      }
+
+      const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const accountAddress = address || this._metadata?.pair?.address;
 
       if (!accountAddress) throw new Error('Address is required');
@@ -254,16 +209,23 @@ export class Did extends Base {
    */
   public async update(options: UpdateDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<UpdateDidResult | null> {
+  ): Promise<UpdateDidResult | EvmTransaction | null> {
     try {
-      const api = this._getApi();
 
-      const { name, address = '', seed = '', customDocumentFields } = options;
-
+      const { name, address = '', wssBaseUrl, seed = '', customDocumentFields } = options;
       if (!name) throw new NameError('Name is required when updating a DID.');
       if (seed !== '') this._checkSeed(seed);
-      if (address !== '') this._checkAddress(address);
 
+      if (this._metadata?.chainType  == ChainType.EVM) {
+        if (!address) throw new Error("Address is required when updating an EVM transaction since an Account is never stored from seed.");
+        if (!customDocumentFields) throw new NoCustomFieldsError('DID Document fields must be configured before manually changing.');
+        checkEvmAddress(address);
+        const evm = new DidClassEvm(this._metadata);
+        return await evm.update({name: name,  address: address, wssBaseUrl: wssBaseUrl, customDocumentFields: customDocumentFields})
+      }
+
+      const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || keyPair.address;
 
@@ -314,16 +276,20 @@ export class Did extends Base {
    */
   public async remove(options: RemoveDidOptions,
     statusCallback?: (result: ISubmittableResult) => void | Promise<void>
-  ): Promise<RemoveDidResult | null> {
+  ): Promise<RemoveDidResult | EvmTransaction> {
     try {
-      const api = this._getApi();
-
       const { name, address = '', seed = '' } = options;
-
       if (!name) throw new NameError('Name is required when removing a DID.');
       if (seed !== '') this._checkSeed(seed);
-      if (address !== '') this._checkAddress(address);
 
+      if (this._metadata?.chainType  == ChainType.EVM) {
+        if (!address) throw new Error("Address is required when reading an EVM transaction since an Account is never stored from seed.");
+        const evm = new DidClassEvm(this._metadata);
+        return await evm.remove({name: name,  address: address})
+      }
+
+      const api = this._getApi();
+      if (address !== '') this._checkSubstrateAddress(address);
       const keyPair = this._metadata?.pair || this._getKeyPair(seed);
       const accountAddress = address || this._metadata?.pair?.address;
 
@@ -369,6 +335,19 @@ export class Did extends Base {
 
     verificationMethod.setId(id);
 
+
+    // If EVM
+    if (this._metadata?.chainType == ChainType.EVM) {
+      if (verification.type != "EcdsaSecp256k1RecoveryMethod2020"){
+        throw new Error(`Verification Type for EVM of ${verification.type} not recognized. Currently only supports method of "EcdsaSecp256k1RecoveryMethod2020" for EVM txs.`);
+      }
+      verificationMethod.setType(verification.type);
+      verificationMethod.setController(didControllerAddress as string);
+      verificationMethod.setPublicKeyMultibase(didAccountAddress as string); // make sure it is set correctly.
+      return { verificationMethod, verificationId: id };
+    }
+
+    // Assume it is substrate chain
     if (verification.type == "Ed25519VerificationKey2020"){
       verificationMethod.setType("Ed25519VerificationKey2020");
     }
@@ -381,11 +360,11 @@ export class Did extends Base {
 
     verificationMethod.setController(didControllerAddress as string);
 
+    // check to see if use wants to set it manually
     if (verification?.publicKeyMultibase) {
       verificationMethod.setPublicKeyMultibase(verification?.publicKeyMultibase);
     }
     else {
-      // generate & set public key multibase BASED ON the didAccountAddress?? -> MAY NEED TO CHANGE TO CONTROLLER??
       const publicKey = decodeAddress(didAccountAddress, false, 42)
       const publicKeyHex = u8aToHex(publicKey);
       const publicKeyMultibase = publicKeyHex.replace(/^0x/, '');
@@ -397,8 +376,8 @@ export class Did extends Base {
   }
 
   private _createSignature(signature: Signature) {
-    if (!["Ed25519VerificationKey2020", "Sr25519VerificationKey2020"].includes(signature.type)) {
-      throw new Error('Signature Type must be "Ed25519VerificationKey2020" or "Sr25519VerificationKey2020"');
+    if (!["EcdsaSecp256k1RecoveryMethod2020", "Ed25519VerificationKey2020", "Sr25519VerificationKey2020"].includes(signature.type)) {
+      throw new Error('Signature Type must be "EcdsaSecp256k1RecoveryMethod2020", "Ed25519VerificationKey2020" or "Sr25519VerificationKey2020"');
   }
     if (!signature.issuer) throw new Error('Signature Issuer is required');
     if (!signature.hash) throw new Error('Signature Hash is required');
@@ -450,7 +429,7 @@ export class Did extends Base {
 
     // set controller if present in customDocumentFields
     if (customDocumentFields?.controller){
-      document = this._setController(customDocumentFields, document);
+      document = this._setController(customDocumentFields?.controller, document);
     }
     else { // default set controller
       document.setController(this._getDidId(didControllerAddress.toString(), this._prefix));
@@ -511,7 +490,7 @@ export class Did extends Base {
     }
 
     if (customDocumentFields?.controller) {
-      newDocument = this._setController(customDocumentFields, newDocument);
+      newDocument = this._setController(customDocumentFields?.controller, newDocument);
     }
     else  {
       const oldController = oldDocument.controller;
@@ -556,8 +535,8 @@ export class Did extends Base {
     return hash;
   }
 
-  private _setController(customDocumentFields: UpdateDocumentFields, newDocument: peaqDidProto.Document){
-      const controllerHold = customDocumentFields?.controller;
+  private _setController(passedController: string, newDocument: peaqDidProto.Document){
+      const controllerHold = passedController;
       const controller = `did:${this._prefix}:${controllerHold}`;
 
       const regexSS58 = /^did:[^:]+:5[1-9A-HJ-NP-Za-km-z]{47}$/;
@@ -578,14 +557,11 @@ export class Did extends Base {
     }
   }
 
-  private _checkAddress(accountAddress: Address) {
+  private _checkSubstrateAddress(accountAddress: Address) {
     if (!accountAddress) throw new AddressError('Address is required');
     const regexSS58 = /^[1-9A-HJ-NP-Za-km-z]{48}$/; // regex for ss58
-    const regexETH = /^0x[a-fA-F0-9]{40}$/;         // regex for Ethereum
-    if(!regexSS58.test(accountAddress as string) && !regexETH.test(accountAddress as string)){
-      throw new AddressError(`Incorrect Substrate SS58/Ethereum Address format. Given address does not match expected length or contains an invalid char. 
-        SS58 address are 58 char in length with 0, O, I & l omitted. Ethereum addresses are 42 characters in length, starting with "0x" followed by 
-        40 hexadecimal characters (0-9, a-f, A-F) with no characters omitted.`);
+    if(!regexSS58.test(accountAddress as string) ){
+      throw new AddressError("Incorrect Substrate SS58 Address format. SS58 address are 58 char in length with 0, O, I & l omitted.");
     }
   }
 }

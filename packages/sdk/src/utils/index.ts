@@ -1,9 +1,11 @@
 import { ApiPromise } from '@polkadot/api';
 import { u8aConcat, u8aToU8a } from '@polkadot/util';
 import { blake2AsHex, decodeAddress } from '@polkadot/util-crypto';
+import { ethers } from 'ethers';
+
 
 import type { CreateStorageKeysArgs } from '../types';
-import { CreateStorageKeysEnum } from '../types';
+import { CreateStorageKeysEnum, Address } from '../types';
 
 export const createStorageKeys = (args: CreateStorageKeysArgs[]) => {
   const keysByteArray = [];
@@ -52,4 +54,13 @@ export const generateRandomString = (length = 6) => {
   let result = '';
   for (let i = length; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
   return result;
+}
+
+/**
+ * Used to validate a proper H160 address is being passed.
+ */
+export const checkEvmAddress = (address: Address | undefined) => {
+    if (!ethers.isAddress(address)) {
+        throw new Error(`The address of ${address} is not a valid EVM address`);
+    }
 }

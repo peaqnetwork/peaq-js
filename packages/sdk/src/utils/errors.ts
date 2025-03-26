@@ -1,4 +1,12 @@
 // DID custom errors
+
+export class GenerateDidError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GenerateDidError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
 export class CreateDidError extends Error {
   constructor(message: string) {
     super(message);
