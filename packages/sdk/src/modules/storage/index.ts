@@ -44,20 +44,21 @@ export class Storage extends Base {
         if (!itemType) throw new ItemTypeError('Item Type name is required');
         if (!item) throw new ItemError('Item name is required');
         if (seed !== '') this._checkSeed(seed);
+        const itemString = typeof item === 'string' ? item : JSON.stringify(item);
         if (stringToU8a(itemType).length > 64) throw new ItemTypeError('New Item Type cannot be larger than 64 bytes');
-        if (stringToU8a(item).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
+        if (stringToU8a(itemString).length > 256) throw new ItemError('New Item cannot be larger than 256 bytes');
 
         // EVM tx logic if chainType is set to EVM
         if (this._metadata?.chainType == ChainType.EVM) {
             const evm = new StorageClassEvm();
-            return await evm.addItem({itemType: itemType,  item: item})
+            return await evm.addItem({itemType: itemType,  item: itemString})
         }
         
         const api = this._getApi();
         const keyPair = this._metadata?.pair || this._getKeyPair(seed);
         const attributeExtrinsic = api.tx?.['peaqStorage']?.['addItem'](
             itemType,
-            item
+            itemString
         );
         const nonce = await this._getNonce(keyPair.address);
         const eventData = await this._newSignTx({nonce, address: keyPair, extrinsics: attributeExtrinsic});
@@ -67,7 +68,7 @@ export class Storage extends Base {
         });
         // is it necessary to add more verbose logging in return object?
         return {
-            message: `Successfully added the storage item type ${itemType} with item ${item} for the address ${keyPair.address}`,
+            message: `Successfully added the storage item type ${itemType} with item ${itemString} for the address ${keyPair.address}`,
             block_hash: eventData[0]?.blockHash as unknown as CodecHash,
             unsubscribe,
         };

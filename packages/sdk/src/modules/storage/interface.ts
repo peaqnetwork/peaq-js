@@ -4,7 +4,7 @@ import type { CodecHash } from '@polkadot/types/interfaces/runtime/types';
 // function input parameters
 export interface AddItemOptions {
     itemType: string;
-    item: string;
+    item: Object;
     seed?: string;
 }
 

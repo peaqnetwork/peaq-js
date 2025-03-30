@@ -76,7 +76,8 @@ export class StorageClassEvm {
         const createStorageFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.ADD_ITEM)).substring(0, 10);
 
         const itemTypeBytes = ethers.hexlify(ethers.toUtf8Bytes(itemType));
-        const itemBytes = ethers.hexlify(ethers.toUtf8Bytes(item));
+        const itemString = typeof item === 'string' ? item : JSON.stringify(item);
+        const itemBytes = ethers.hexlify(ethers.toUtf8Bytes(itemString));
 
 
         const params = this.abiCoder.encode(
