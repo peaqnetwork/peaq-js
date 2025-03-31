@@ -1,6 +1,6 @@
 # peaq-js
 
-Follow [documentation](https://docs.peaq.network/sdk) for a detailed overview of the features and functionalities of peaq SDK.
+Follow [documentation](https://docs.peaq.network/docs/build/sdk/) for a detailed overview of the features and functionalities of peaq SDK.
 
 
 ## Edit functions
