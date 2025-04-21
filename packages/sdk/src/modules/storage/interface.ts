@@ -21,7 +21,7 @@ export interface GetItemOptions {
 
 export interface UpdateItemOptions {
     itemType: string;
-    item: string;
+    item: Object;
     seed?: string;
 }
 

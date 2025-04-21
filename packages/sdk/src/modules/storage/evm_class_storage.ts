@@ -25,34 +25,6 @@ enum PrecompileAddresses {
     STORAGE = "0x0000000000000000000000000000000000000801"
 }
 
-// interface AddItemOptions {
-//     itemType: string;
-//     item: string;
-// }
-
-// type RemoveItemOptions = {
-//     itemType: string;
-// }
-
-// type GetItemOptions = {
-//     itemType: string;
-//     address: string;
-//     wssBaseUrl: string;
-// }
-
-// type GetItemResult = {
-//     [key: string]: string;
-// }
-
-// type UpdateItemOptions = {
-//     itemType: string;
-//     item: string;
-// }
-
-// export interface EvmTransaction {
-//     to: string;
-//     data: string;
-// }
 
 /**
  * Class that builds peaq's Storage EVM transactions.
@@ -145,7 +117,8 @@ export class StorageClassEvm {
         const createStorageFunctionSelector = ethers.keccak256(ethers.toUtf8Bytes(FunctionSignatures.UPDATE_ITEM)).substring(0, 10);
 
         const itemTypeBytes = ethers.hexlify(ethers.toUtf8Bytes(itemType));
-        const itemBytes = ethers.hexlify(ethers.toUtf8Bytes(item));
+        const itemString = typeof item === 'string' ? item : JSON.stringify(item);
+        const itemBytes = ethers.hexlify(ethers.toUtf8Bytes(itemString));
 
         const params = this.abiCoder.encode(
             ["bytes", "bytes"],
